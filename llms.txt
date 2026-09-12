@@ -19,3 +19,5 @@ browserctrl is open source (khanakia/browserctrl). Everything runs locally and r
 
 ## Links
 - Repository: https://github.com/khanakia/browserctrl
+- Go reference: https://pkg.go.dev/github.com/khanakia/browserctrl
+- Releases: https://github.com/khanakia/browserctrl/releases

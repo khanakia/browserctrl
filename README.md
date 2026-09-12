@@ -3,6 +3,9 @@
 <p align="center">Maps Claude-in-Chrome device ids to the Chromium browser, profile and signed-in email behind them, shows which profiles are open right now, and resolves a nickname to an id.</p>
 
 <p align="center">
+  <a href="https://pkg.go.dev/github.com/khanakia/browserctrl"><img src="https://pkg.go.dev/badge/github.com/khanakia/browserctrl.svg" alt="Go Reference on pkg.go.dev"></a>
+  <a href="https://goreportcard.com/report/github.com/khanakia/browserctrl"><img src="https://goreportcard.com/badge/github.com/khanakia/browserctrl" alt="Go Report Card"></a>
+  <a href="https://github.com/khanakia/browserctrl/releases/latest"><img src="https://img.shields.io/github/v/release/khanakia/browserctrl?color=2ea44f" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-2ea44f" alt="License: Apache-2.0"></a>
   <img src="https://img.shields.io/badge/go-1.26%2B-00ADD8" alt="Go 1.26 or later">
   <img src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-555" alt="Runs on macOS, Linux and Windows (macOS verified live)">
@@ -82,7 +85,7 @@ Without Go, the install script downloads the release archive for your OS/arch, v
 curl -fsSL https://raw.githubusercontent.com/khanakia/browserctrl/main/install.sh | sh
 ```
 
-Windows PowerShell: `irm https://raw.githubusercontent.com/khanakia/browserctrl/main/install.ps1 | iex`. Homebrew: `brew install khanakia/tap/browserctrl` (the formula is published by the release pipeline when its tap token is configured).
+Windows PowerShell: `irm https://raw.githubusercontent.com/khanakia/browserctrl/main/install.ps1 | iex`. Homebrew: `brew install khanakia/tap/browserctrl`.
 
 Or from a checkout: `task install` (binary into `$GOPATH/bin`) or `task build` (`./bin/browserctrl`). Requires Go 1.26 or later; no runtime dependencies, no browser flags, no network.
 
@@ -173,7 +176,7 @@ The uncovered remainder is **14 statements**, each named rather than hand-waved:
 
 `task check` is the gate: gofmt, vet, staticcheck + golangci-lint, `go test -race` (which includes the markdown lint in `docs_test.go`), cross-compile for linux/windows/darwin, and a `go mod tidy` diff check. `task volt:ci` runs volt's equivalent gate plus its skills-frontmatter lint. `task docs:capture -- <args>` regenerates any terminal output shown in the docs against the fixture in `internal/docfixture`.
 
-Releases: `task volt:release:snapshot` builds every platform into `dist/` and publishes nothing; `task volt:release -- --bump patch` (or `-- vX.Y.Z`) tags `vX.Y.Z` and publishes archives, checksums, the skills bundle and (with `HOMEBREW_TAP_GITHUB_TOKEN`) the brew formula — one stream, because `package main` lives at the repo root next to the `browser` library. Configuration lives in `.volt.yml`; `install.sh` / `install.ps1` and the workflows are volt-generated and hash-guarded. Nothing releases on push: `.github/workflows/release.yml` is manual-dispatch by volt's design, and `ci.yml` is manual-dispatch here because the repository is private.
+Releases: `task volt:release:snapshot` builds every platform into `dist/` and publishes nothing; `task volt:release -- --bump patch` (or `-- vX.Y.Z`) tags `vX.Y.Z` and publishes archives, checksums, the skills bundle and (with `HOMEBREW_TAP_GITHUB_TOKEN`) the brew formula — one stream, because `package main` lives at the repo root next to the `browser` library. Configuration lives in `.volt.yml`; `install.sh` / `install.ps1` and the workflows are volt-generated and hash-guarded. Nothing releases on push: `.github/workflows/release.yml` is manual-dispatch by volt's design, and `ci.yml` is manual-dispatch too — the local gate is the real one, and the workflow exists to re-run it on demand.
 
 ## Docs
 

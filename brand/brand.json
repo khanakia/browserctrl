@@ -5,7 +5,7 @@
   "description": "Map Claude-in-Chrome device ids to the Chromium browser, profile and signed-in email behind them, see which profiles are open right now, and resolve a nickname like `work chrome` to an id in one command. CLI + Go library. Reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only: no browser flags, no network.",
   "repo": "khanakia/browserctrl",
   "module": "github.com/khanakia/browserctrl",
-  "homepage": "",
+  "homepage": "https://pkg.go.dev/github.com/khanakia/browserctrl",
   "language": "go",
   "kind": "library+cli",
   "license": "Apache-2.0",
