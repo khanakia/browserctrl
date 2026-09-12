@@ -1,0 +1,15 @@
+# Normalize line endings — keep LF in the repo regardless of OS.
+* text=auto eol=lf
+
+# Go sources are always LF; gofmt output is LF.
+*.go text eol=lf
+
+# go.sum is generated; collapse it in diffs.
+go.sum linguist-generated=true
+
+# Binary assets (don't diff/normalize). None are tracked today; listed so a
+# future brand kit or LevelDB fixture cannot be silently CRLF-mangled.
+*.png binary
+*.ico binary
+*.ldb binary
+*.log binary
