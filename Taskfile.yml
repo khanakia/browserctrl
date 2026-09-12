@@ -15,22 +15,22 @@ tasks:
   build:
     desc: Build the CLI into ./bin
     cmds:
-      - go build -o bin/{{.BIN}} ./cmd/{{.BIN}}
+      - go build -o bin/{{.BIN}} .
 
   install:
     desc: Install the CLI into $GOPATH/bin (or $GOBIN)
     cmds:
-      - go install ./cmd/{{.BIN}}
+      - go install .
 
   run:
     desc: List every profile with the Claude extension (running first)
     cmds:
-      - go run ./cmd/{{.BIN}} list {{.CLI_ARGS}}
+      - go run . list {{.CLI_ARGS}}
 
   find:
     desc: 'Print the device id for a query, e.g. task find -- legable'
     cmds:
-      - go run ./cmd/{{.BIN}} find {{.CLI_ARGS}}
+      - go run . find {{.CLI_ARGS}}
 
   docs:capture:
     desc: 'Print real CLI output against the doc fixture, e.g. task docs:capture -- list --json'
@@ -101,7 +101,7 @@ tasks:
   # Everything under volt:* shells out to the `volt` binary: it owns the gate
   # (its own golangci config + SKILL.md lint), release streams, tagging,
   # archives, checksums, the Homebrew formula and the skills bundle. Install:
-  # `brew install khanakia/tap/volt`. Config: cmd/browserctrl/.volt.yml.
+  # `brew install khanakia/tap/volt`. Config: .volt.yml at the repo root.
   volt:ci:
     desc: '[voltkit] the gate: fmt, vet, golangci-lint (volt config), race tests, SKILL.md lint'
     cmds:
@@ -118,22 +118,17 @@ tasks:
       - volt status
 
   volt:gen:
-    desc: '[voltkit] regenerate hash-guarded files (workflows); skills wiring: cd cmd/browserctrl && volt gen skills'
+    desc: '[voltkit] regenerate hash-guarded files: task volt:gen (workflows, install scripts) · task volt:gen -- skills (skills wiring)'
     cmds:
       - volt gen {{.CLI_ARGS}}
 
   volt:release:snapshot:
-    desc: '[voltkit] rehearse the CLI release — every platform + checksums into dist/, publish nothing'
+    desc: '[voltkit] rehearse the release — every platform + checksums into dist/, publish nothing'
     cmds:
-      - volt release cmd/browserctrl --snapshot
+      - volt release . --snapshot
 
-  volt:release:cli:
-    desc: '[voltkit] release the CLI (tag browserctrl/vX.Y.Z, archives, skills bundle, brew): task volt:release:cli -- --bump patch'
-    cmds:
-      - volt release cmd/browserctrl {{.CLI_ARGS}}
-
-  volt:release:lib:
-    desc: '[voltkit] release the Go module (bare tag vX.Y.Z, what go install @latest resolves): task volt:release:lib -- --bump patch'
+  volt:release:
+    desc: '[voltkit] release (tag vX.Y.Z; archives, checksums, skills bundle, brew formula): task volt:release -- --bump patch  |  -- v0.2.0'
     cmds:
       - volt release . {{.CLI_ARGS}}
 

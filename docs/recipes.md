@@ -66,7 +66,7 @@ $ browserctrl skills check <dir-where-the-harness-put-SKILL.md>
 browserctrl-core  current
 ```
 
-Exit 0 means current; exit 1 means stale, in which case `browserctrl skills get browserctrl-core` prints the version that matches the binary and the skill's own header tells the agent to prefer that output. Release builds fetch their skill bundle from the matching `browserctrl/vX.Y.Z` release once and cache it; a source build serves the checkout's `skills/` directory, so editing the skill needs no rebuild.
+Exit 0 means current; exit 1 means stale, in which case `browserctrl skills get browserctrl-core` prints the version that matches the binary and the skill's own header tells the agent to prefer that output. Release builds fetch their skill bundle from the matching `vX.Y.Z` release once and cache it; a source build serves the checkout's `skills/` directory, so editing the skill needs no rebuild.
 
 ## Give every browser a name you will remember
 

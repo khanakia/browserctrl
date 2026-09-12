@@ -30,7 +30,7 @@
     ]
   },
   "install": {
-    "go": "go install github.com/khanakia/browserctrl/cmd/browserctrl@latest"
+    "go": "go install github.com/khanakia/browserctrl@latest"
   },
   "khanakia": { "addToApps": false },
   "brandKit": false

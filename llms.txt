@@ -13,7 +13,8 @@ browserctrl is open source (khanakia/browserctrl). Everything runs locally and r
 - [CONTRIBUTING](https://github.com/khanakia/browserctrl/blob/main/CONTRIBUTING.md): how to contribute, the rules the code follows
 
 ## Install
-- Go: `go install github.com/khanakia/browserctrl/cmd/browserctrl@latest`
+- Go: `go install github.com/khanakia/browserctrl@latest`
+- Script: `curl -fsSL https://raw.githubusercontent.com/khanakia/browserctrl/main/install.sh | sh`
 - Library: `import "github.com/khanakia/browserctrl/browser"`
 
 ## Links

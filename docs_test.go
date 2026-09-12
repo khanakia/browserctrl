@@ -1,4 +1,4 @@
-// Package browserctrl_test holds repository-level checks that are not about
+// Package main_test holds repository-level checks that are not about
 // Go code: the markdown documentation lint. It lives in the root package so
 // `go test ./...` — the gate everyone already runs — enforces the doc rules
 // without a second tool.
@@ -8,7 +8,7 @@
 //   - in-page anchors match GitHub's heading slugs;
 //   - no `---` horizontal rules (misread as frontmatter by some renderers);
 //   - no hard-wrapped prose: a paragraph is one physical line.
-package browserctrl_test
+package main_test
 
 import (
 	"fmt"
