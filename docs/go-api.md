@@ -59,7 +59,7 @@ func OnlyRunning(entries []Entry) []Entry
 
 `OnlyRunning` keeps `State == RunStateRunning`. `RunStateUnknown` is excluded: "could not tell" must never be presented as "connected".
 
-The CLI's `find` tie-break (drop id-less entries, then prefer the single running one) is CLI policy in `cmd/browserctrl`, not library behaviour — compose it yourself if you want the same rule:
+The CLI's `find` tie-break (drop id-less entries, then prefer the single running one) is CLI policy in the root `main` package, not library behaviour — compose it yourself if you want the same rule:
 
 ```go
 hits := browser.Match(entries, "work chrome")

@@ -2,7 +2,7 @@
 //
 // Regenerate:  volt gen
 // To change:   edit .volt.yml, or the template in volt itself — edits here are lost.
-// volt:hash 00c556fa7b19
+// volt:hash 20e4be48bd42
 package main
 
 import (
@@ -18,7 +18,7 @@ func newSkillsCommand() *cobra.Command {
 		Binary:  "browserctrl",
 		Repo:    "khanakia/browserctrl",
 		Version: version, // the project's stamped version variable
-		Tag:     "browserctrl/" + version,
+		Tag:     "" + version,
 		// The detected forge's download shape, fixed at gen time — the
 		// binary never guesses its host.
 		AssetURLTemplate: "https://github.com/khanakia/browserctrl/releases/download/{tag}/{asset}",

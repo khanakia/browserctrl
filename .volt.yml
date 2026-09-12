@@ -1,0 +1,19 @@
+# .volt.yml — release config for browserctrl (package main at the repo root).
+#
+# Tag grammar: a single-CLI repo root tags bare vX.Y.Z, so ONE stream serves
+# everything — `go install github.com/khanakia/browserctrl@latest`, the
+# cross-compiled archives, the Homebrew formula, install.sh and the skills
+# bundle. The `browser` library ships in the same module at the same version.
+# Release with:  task volt:release -- --bump patch   (volt release . vX.Y.Z)
+#
+# No ldflags block on purpose: volt's default stamp map targets
+# github.com/ubgo/buildinfo.{Version,Commit,BuildTime}, which is exactly what
+# main.go reads for --version and for the skills tag, so volt's
+# post-build stamp verification and the binary agree without a
+# project-specific symbol.
+binary: browserctrl
+extra_files: [README.md, LICENSE]
+brew:
+  tap: khanakia/homebrew-tap
+  description: "Map Claude-in-Chrome device ids to the Chromium browser, profile and email behind them"
+  license: Apache-2.0

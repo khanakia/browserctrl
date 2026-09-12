@@ -30,22 +30,17 @@ Requirements: Go 1.26+, [Task](https://taskfile.dev), and for `task lint` both `
 | `task volt:ci` | `volt ci --all`: volt's gate with its embedded golangci config plus the SKILL.md frontmatter lint |
 | `task volt:status` / `task volt:doctor` | release streams and their next version / is the repo releasable (tools, auth, remote) |
 | `task volt:release:snapshot` | build every platform into `dist/` with checksums, publish nothing — the release rehearsal |
-| `task volt:gen` (workflows) / `cd cmd/browserctrl && volt gen skills` | regenerate volt's hash-guarded files |
+| `task volt:gen` / `task volt:gen -- skills` | regenerate volt's hash-guarded files (workflows + install scripts / the skills wiring) |
 
 There is no CI that runs on push (the repository is private, where Actions minutes are metered; `ci.yml` is `workflow_dispatch` only and `release.yml` is manual by volt's design). `task check` on your machine **is** the gate; say in the PR that it passed.
 
 ## Releasing
 
-Releases are made by [volt](https://github.com/khanakia/voltkit) and are always a deliberate, manual act — never on push, never by tag. Two streams exist because this is a library plus a CLI in one module:
+Releases are made by [volt](https://github.com/khanakia/voltkit) and are always a deliberate, manual act — never on push, never by tag. `package main` sits at the repo root next to the `browser` library, so there is exactly one stream: a bare `vX.Y.Z` tag that `go install github.com/khanakia/browserctrl@latest` and library importers resolve **and** that carries the release assets — cross-compiled archives + `checksums.txt`, `skills_<version>.tar.gz`, and the Homebrew formula in `khanakia/homebrew-tap` when `HOMEBREW_TAP_GITHUB_TOKEN` is set (skipped loudly otherwise).
 
-| Stream | Command | Tag | Publishes |
-|---|---|---|---|
-| CLI | `task volt:release:cli -- --bump patch` (or an explicit `vX.Y.Z`) | `browserctrl/vX.Y.Z` | cross-compiled archives + `checksums.txt`, `skills_<version>.tar.gz`, the Homebrew formula in `khanakia/homebrew-tap` when `HOMEBREW_TAP_GITHUB_TOKEN` is set (skipped loudly otherwise) |
-| Go module | `task volt:release:lib -- --bump patch` | `vX.Y.Z` (bare) | nothing but the tag — this is what `go install github.com/khanakia/browserctrl/cmd/browserctrl@latest` and library importers resolve |
+Order: bump `CHANGELOG.md` (move `[Unreleased]` under the version), commit, `task check`, `task volt:release:snapshot` to rehearse, then `task volt:release -- vX.Y.Z` (or `-- --bump patch|minor|major`). volt refuses a dirty tree, verifies the stamped version inside the produced binary, and re-reads what it published rather than trusting exit codes; a half-finished release is recovered with `volt release --from-tag vX.Y.Z`, which is also what the manual `release.yml` workflow runs. Never reuse a version the Go checksum database has seen — a burned version is skipped forward, not re-tagged.
 
-Order for a coordinated release: bump `CHANGELOG.md` (move `[Unreleased]` under the version), commit, `task check`, `task volt:release:snapshot` to rehearse, then `task volt:release:lib -- vX.Y.Z` and `task volt:release:cli -- vX.Y.Z` with the same version. volt refuses a dirty tree, verifies the stamped version inside the produced binary, and re-reads what it published rather than trusting exit codes; a half-finished release is recovered with `volt release --from-tag browserctrl/vX.Y.Z`, which is also what the manual `release.yml` workflow runs. Never reuse a version the Go checksum database has seen — a burned version is skipped forward, not re-tagged.
-
-Generated files carry a `volt:hash` header and are refused (with a diff) rather than overwritten when hand-edited: `.github/workflows/*.yml`, `cmd/browserctrl/skills_gen.go`. `ci.yml` is intentionally hand-edited to `workflow_dispatch`; keep that when regenerating.
+Generated files carry a `volt:hash` header and are refused (with a diff) rather than overwritten when hand-edited: `.github/workflows/*.yml`, `install.sh`, `install.ps1`, `skills_gen.go`. `ci.yml` is intentionally hand-edited to `workflow_dispatch`; keep that when regenerating (`volt gen` will report it refused — expected).
 
 ## Rules the code follows
 

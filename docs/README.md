@@ -5,7 +5,7 @@
 ## Install
 
 ```sh
-go install github.com/khanakia/browserctrl/cmd/browserctrl@latest
+go install github.com/khanakia/browserctrl@latest
 ```
 
 Or from a clone: `task build` produces `bin/browserctrl`, `task install` puts it on `$GOPATH/bin`.
