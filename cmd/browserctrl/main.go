@@ -20,10 +20,10 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/ubgo/buildinfo"
 
 	"github.com/khanakia/browserctrl/browser"
 )
@@ -45,14 +45,31 @@ const (
 	flagRoot    = "root"
 )
 
-// version is the value printed by `browserctrl --version`. Overridable at
-// link time (`-ldflags "-X main.version=v1.2.3"`) for release builds; when
-// left as versionDev, resolveVersion falls back to the module version Go
-// embeds for `go install pkg@vX.Y.Z` builds.
-var version = versionDev
+// version is the binary's release version, used by the generated
+// skills_gen.go (volt gen skills) to pick the release tag whose skills bundle
+// matches this exact binary. buildinfo.DevVersion switches the skills command
+// to serving the working tree's skills/ directory instead of fetching.
+var version = releaseVersion(buildinfo.Get())
 
-// versionDev marks a build with no release version stamped in.
-const versionDev = "dev"
+// pseudoVersionPrefix is what Go stamps into Main.Version for a `go build`
+// from a git checkout with no tag (e.g. v0.0.0-20260912061725-90d9f421ae81
+// +dirty). It is a real-looking version that no release ever carries.
+const pseudoVersionPrefix = "v0.0.0-"
+
+// releaseVersion maps build provenance to the version the skills bundle is
+// keyed by: a volt ldflags stamp or a `go install …@vX.Y.Z` module version
+// is returned as is; anything else — no version at all, or Go's untagged
+// pseudo-version — is buildinfo.DevVersion.
+//
+// Why: without this, a plain `go build` in the repo produced a binary whose
+// `skills` command tried to download a bundle for a pseudo-version and 404ed
+// (seen 2026-09-12); only `go run`, which embeds no VCS data, said "dev".
+func releaseVersion(info buildinfo.Info) string {
+	if !info.HasVersion() || strings.HasPrefix(info.Version, pseudoVersionPrefix) {
+		return buildinfo.DevVersion
+	}
+	return info.Version
+}
 
 // Sentinel errors mapped to exit codes in main.
 var (
@@ -98,14 +115,46 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "browserctrl",
 		Short:         "List Claude-connected Chromium browser profiles and their device ids",
-		Version:       resolveVersion(),
+		Version:       versionString(buildinfo.Get()),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	root.AddCommand(newListCmd(), newFindCmd())
+	root.AddCommand(newListCmd(), newFindCmd(), newSkillsCommand())
 	return root
+}
+
+// versionString renders `--version`: the raw buildinfo version (so a
+// pseudo-version still identifies the exact source build) plus, when the
+// build carries a real commit, its short hash and a dirty marker. The marker
+// is skipped when Go already encoded it as a "+dirty" suffix.
+func versionString(info buildinfo.Info) string {
+	if !info.HasCommit() {
+		return info.Version
+	}
+	s := info.Version + " (" + shortCommit(info.Commit) + ")"
+	if info.Modified && !strings.Contains(info.Version, dirtySuffix) {
+		s += " " + dirtyMarker
+	}
+	return s
+}
+
+// dirtySuffix is Go's own uncommitted-tree marker inside a pseudo-version;
+// dirtyMarker is ours for stamped versions that carry no such suffix.
+const (
+	dirtySuffix = "+dirty"
+	dirtyMarker = "dirty"
+)
+
+// shortCommitLen is git's conventional abbreviated hash length.
+const shortCommitLen = 7
+
+func shortCommit(c string) string {
+	if len(c) > shortCommitLen {
+		return c[:shortCommitLen]
+	}
+	return c
 }
 
 func addListFlags(cmd *cobra.Command, f *listFlags) {
@@ -220,19 +269,6 @@ func pickOne(matches []browser.Entry) (browser.Entry, error) {
 		return running[0], nil
 	}
 	return browser.Entry{}, errAmbiguous
-}
-
-// resolveVersion returns the linker-stamped version, else the module version
-// recorded by `go install …@vX.Y.Z`, else versionDev. Never errors: a version
-// string is informational and must not stop the tool from running.
-func resolveVersion() string {
-	if version != versionDev {
-		return version
-	}
-	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
-		return info.Main.Version
-	}
-	return versionDev
 }
 
 // writeJSON pretty-prints v. Generic rather than `any`-typed so the call

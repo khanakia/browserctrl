@@ -1,0 +1,3 @@
+# Everything under internal/ is workspace plumbing (the docs capture harness),
+# never released: hidden from `volt status`, refused by `volt release`.
+internal: true

@@ -1,4 +1,9 @@
 bin/
+dist/
 .docs-fixture/
 cover.out
 cover.html
+# BEGIN repolink (managed — do not edit)
+/CLAUDE.md
+/docsi
+# END repolink

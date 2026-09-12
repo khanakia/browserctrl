@@ -1,0 +1,18 @@
+# .volt.yml — release config for the browserctrl CLI (this directory).
+#
+# Tag grammar: this is a CLI inside a mixed repo, so volt tags it by binary
+# name — browserctrl/vX.Y.Z — while the Go module at the repo root (the
+# `browser` library, what `go install …@latest` resolves) tags bare vX.Y.Z.
+# Release with:  volt release cmd/browserctrl --bump patch
+#
+# No ldflags block on purpose: volt's default stamp map targets
+# github.com/ubgo/buildinfo.{Version,Commit,BuildTime}, which is exactly what
+# cmd/browserctrl reads for --version and for the skills tag, so volt's
+# post-build stamp verification and the binary agree without a
+# project-specific symbol.
+binary: browserctrl
+extra_files: [../../README.md, ../../LICENSE]
+brew:
+  tap: khanakia/homebrew-tap
+  description: "Map Claude-in-Chrome device ids to the Chromium browser, profile and email behind them"
+  license: Apache-2.0
