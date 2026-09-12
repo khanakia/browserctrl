@@ -27,8 +27,25 @@ Requirements: Go 1.26+, [Task](https://taskfile.dev), and for `task lint` both `
 | `task cross` | cross-compile linux/amd64, linux/arm64, windows/amd64, darwin/arm64 |
 | `task docs:capture -- <args>` | run the CLI against the doc fixture and print real output to paste into the docs |
 | `task check` | fmt check → vet → lint → test → cross → `go mod tidy -diff` |
+| `task volt:ci` | `volt ci --all`: volt's gate with its embedded golangci config plus the SKILL.md frontmatter lint |
+| `task volt:status` / `task volt:doctor` | release streams and their next version / is the repo releasable (tools, auth, remote) |
+| `task volt:release:snapshot` | build every platform into `dist/` with checksums, publish nothing — the release rehearsal |
+| `task volt:gen` (workflows) / `cd cmd/browserctrl && volt gen skills` | regenerate volt's hash-guarded files |
 
-There is no CI that runs on push. `task check` on your machine **is** the gate; say in the PR that it passed.
+There is no CI that runs on push (the repository is private, where Actions minutes are metered; `ci.yml` is `workflow_dispatch` only and `release.yml` is manual by volt's design). `task check` on your machine **is** the gate; say in the PR that it passed.
+
+## Releasing
+
+Releases are made by [volt](https://github.com/khanakia/voltkit) and are always a deliberate, manual act — never on push, never by tag. Two streams exist because this is a library plus a CLI in one module:
+
+| Stream | Command | Tag | Publishes |
+|---|---|---|---|
+| CLI | `task volt:release:cli -- --bump patch` (or an explicit `vX.Y.Z`) | `browserctrl/vX.Y.Z` | cross-compiled archives + `checksums.txt`, `skills_<version>.tar.gz`, the Homebrew formula in `khanakia/homebrew-tap` when `HOMEBREW_TAP_GITHUB_TOKEN` is set (skipped loudly otherwise) |
+| Go module | `task volt:release:lib -- --bump patch` | `vX.Y.Z` (bare) | nothing but the tag — this is what `go install github.com/khanakia/browserctrl/cmd/browserctrl@latest` and library importers resolve |
+
+Order for a coordinated release: bump `CHANGELOG.md` (move `[Unreleased]` under the version), commit, `task check`, `task volt:release:snapshot` to rehearse, then `task volt:release:lib -- vX.Y.Z` and `task volt:release:cli -- vX.Y.Z` with the same version. volt refuses a dirty tree, verifies the stamped version inside the produced binary, and re-reads what it published rather than trusting exit codes; a half-finished release is recovered with `volt release --from-tag browserctrl/vX.Y.Z`, which is also what the manual `release.yml` workflow runs. Never reuse a version the Go checksum database has seen — a burned version is skipped forward, not re-tagged.
+
+Generated files carry a `volt:hash` header and are refused (with a diff) rather than overwritten when hand-edited: `.github/workflows/*.yml`, `cmd/browserctrl/skills_gen.go`. `ci.yml` is intentionally hand-edited to `workflow_dispatch`; keep that when regenerating.
 
 ## Rules the code follows
 
@@ -49,7 +66,7 @@ These are enforced by review and, where possible, by tests. A PR that breaks one
 
 `task cover` prints per-package coverage (each package's own tests) and the merged total across every package; the README quotes those numbers verbatim. The bar for a PR is: every **reachable** arm you add or touch has a test, and the test's comment names the arm it pins (`// Pins the mkdtemp error arm: …`). Coverage is measured, not targeted — a pinning test that documents *why* an arm exists is the deliverable, the percentage is a by-product.
 
-Fifteen statements are knowingly uncovered and enumerated in the README's Testing section: two `os.Exit` wrappers, six deferred-Close/cleanup error arms, two tabwriter per-row write arms that `Flush` reports instead, the `flock` default arm, the `ReadBuildInfo` version arm, and three defensive arms in the fixture builder. If you find a way to reach one of them from a test without fault injection below `os`, add the test and delete it from the list. If you add a new unreachable arm, add it to the list with its reason — an unexplained gap is treated as a missing test.
+Fourteen statements are knowingly uncovered and enumerated in the README's Testing section: two `os.Exit` wrappers, six deferred-Close/cleanup error arms, two tabwriter per-row write arms that `Flush` reports instead, the `flock` default arm, and three defensive arms in the fixture builder. If you find a way to reach one of them from a test without fault injection below `os`, add the test and delete it from the list. If you add a new unreachable arm, add it to the list with its reason — an unexplained gap is treated as a missing test.
 
 Useful while iterating:
 
