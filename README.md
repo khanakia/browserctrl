@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/go-1.26%2B-00ADD8" alt="Go 1.26 or later">
   <img src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-555" alt="Runs on macOS, Linux and Windows (macOS verified live)">
   <img src="https://img.shields.io/badge/read--only-no%20network%2C%20no%20browser%20flags-2ea44f" alt="Read-only: no network, no browser flags">
-  <img src="https://img.shields.io/badge/coverage-97.2%25%20lib%20%C2%B7%2096.1%25%20cli%20%C2%B7%2095.9%25%20merged-2ea44f" alt="Statement coverage: 97.2% browser package, 96.1% CLI, 95.9% merged across every package">
+  <img src="https://img.shields.io/badge/coverage-97.2%25%20lib%20%C2%B7%2097.3%25%20cli%20%C2%B7%2096.2%25%20merged-2ea44f" alt="Statement coverage: 97.2% browser package, 97.3% CLI, 96.2% merged across every package">
 </p>
 
 `browserctrl` is an open-source, local-first browser identity resolver for AI coding agents: it tells you which Chromium browser profile is behind each Claude-in-Chrome **device id** — running or not — so Claude Code's `claude-in-chrome` MCP can `select_browser` the right window first time instead of prompting in every browser. It reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only, needs no `--remote-debugging-port`, sends nothing anywhere, and ships as a CLI (`browserctrl`) plus an importable Go package (`github.com/khanakia/browserctrl/browser`) with a fixture package for tests.
@@ -27,7 +27,7 @@ import "github.com/khanakia/browserctrl/browser"
 | 🖥️ **`browserctrl` CLI** | see every profile with the Claude extension, which are open right now, and get the id for "my work chrome" without clicking through prompts | [Usage](#usage) → [command reference](docs/commands.md) → [recipes](docs/recipes.md) |
 | 📦 **Go library** | scan Chromium user-data roots from your own tool, match entries, build test fixtures | [Library use](#library-use) → [Go API](docs/go-api.md) |
 
-**Contents:** [Why browserctrl?](#why-browserctrl) · [Install](#install) · [Usage](#usage) · [Using it from Claude Code](#using-it-from-claude-code) · [How it works](#how-it-works) · [Library use](#library-use) · [Testing](#testing) · [Development](#development) · [Docs](#docs) · [FAQ](#faq)
+**Contents:** [Why browserctrl?](#why-browserctrl) · [Install](#install) · [Usage](#usage) · [Using it from Claude Code](#using-it-from-claude-code) · [Agent skill](#agent-skill) · [How it works](#how-it-works) · [Library use](#library-use) · [Testing](#testing) · [Development](#development) · [Docs](#docs) · [FAQ](#faq)
 
 ## Why browserctrl?
 
@@ -78,10 +78,13 @@ go install github.com/khanakia/browserctrl/cmd/browserctrl@latest
 
 Or from a checkout: `task install` (binary into `$GOPATH/bin`) or `task build` (`./bin/browserctrl`). Requires Go 1.26 or later; no runtime dependencies, no browser flags, no network.
 
+Releases are cut by [volt](https://github.com/khanakia/voltkit): each `browserctrl/vX.Y.Z` tag ships cross-compiled archives with a `checksums.txt`, a Homebrew formula in `khanakia/homebrew-tap` (`brew install khanakia/tap/browserctrl` once the first release exists), and the skills bundle the [agent skill](#agent-skill) section describes. `browserctrl --version` prints the stamped version and commit; a source build prints Go's pseudo-version instead so you can still tell which commit you are running.
+
 ## Usage
 
 - `browserctrl list` — every profile with the extension, running ones first. `--json` for machine output, `--running` to keep only open profiles, `--all` to also scan the Claude desktop-app extension ids, `--root <dir>` (repeatable) to scan a custom `--user-data-dir` instead of the well-known install locations.
 - `browserctrl find <term>...` — prints exactly one device id. Every term must match (case-insensitive substring) one of display name, profile name, email, profile dir, browser kind, device id. If several match but exactly one is running, that one wins. Exit 1 = no match, exit 2 = ambiguous (candidates on stderr).
+- `browserctrl skills` — list, print and freshness-check the agent skill this binary ships (`list`, `get`, `path`, `check`, `version`, `refresh`).
 - `browserctrl --version`, `browserctrl completion <shell>`.
 
 Every flag, with real output for every verb, is in the [command reference](docs/commands.md); end-to-end workflows are in [recipes](docs/recipes.md).
@@ -96,6 +99,25 @@ Before any claude-in-chrome action, run `browserctrl list --running --json` and 
 ```
 
 The [recipes page](docs/recipes.md#claude-code-pick-the-browser-without-a-prompt) has the longer version, including how to give each browser a memorable display name.
+
+## Agent skill
+
+The rule above also ships as a [SKILL.md](skills/browserctrl-core/SKILL.md) — the open agent-skill format — so any harness can install it instead of you pasting it into `CLAUDE.md`:
+
+```sh
+npx skills add khanakia/browserctrl        # install into your agent (skills.sh)
+browserctrl skills                          # what this binary ships
+browserctrl skills check <installed-dir>    # exit 0 current, exit 1 stale
+```
+
+```
+$ browserctrl skills
+  browserctrl-core  Pick the right Chrome/Chromium browser for the claude-in-chrome MCP without a click-through prompt.
+
+install for agents:  npx skills add khanakia/browserctrl
+```
+
+The skill is served by the binary itself (`skills get browserctrl-core`) and is always the version that matches the installed binary: release builds fetch `skills_<version>.tar.gz` from their own release once and cache it, source builds serve the repo's `skills/` directory. That is [voltkit/skillcmd](https://github.com/khanakia/voltkit/tree/main/skillcmd); the wiring in `cmd/browserctrl/skills_gen.go` is generated by `volt gen skills`.
 
 ## How it works
 
@@ -125,24 +147,25 @@ Full surface, with the contracts each function keeps, is in the [Go API page](do
 |---|---|
 | `browser` (library) | 97.2% |
 | `browser/browsertest` (fixtures) | 89.1% |
-| `cmd/browserctrl` (CLI) | 96.1% |
+| `cmd/browserctrl` (CLI) | 97.3% |
 | `internal/docfixture` (doc harness) | 97.3% |
-| **merged, every package** | **95.9% (349/364 statements)** |
+| **merged, every package** | **96.2% (358/372 statements)** |
 
 Re-measure with `task cover`; `task test:uncovered` lists what is left per function. The numbers above are the measured ones, not rounded claims. The suite needs no browser: every scenario runs against fake user-data roots built by `browser/browsertest`, "running" is simulated by holding the same `flock` Chromium holds, and `go test -race` with parallel subtests is what caught the exclusive-lock probe bug.
 
-The uncovered remainder is **15 statements**, each named rather than hand-waved:
+The uncovered remainder is **14 statements**, each named rather than hand-waved:
 
 - **Two `os.Exit` wrappers** — `main()` in `cmd/browserctrl` and in `internal/docfixture`. Both delegate to a `run()` that is tested end to end; the wrapper itself cannot run inside `go test`.
 - **Six deferred-`Close` / cleanup error arms** — `db.Close`, `in.Close`, `out.Close` and `os.RemoveAll` in the store reader, plus `db.Close` in the fixture builder. They surface a flush or unlink failure instead of dropping it; provoking one needs fault injection below `os`, which the suite deliberately does not do.
 - **Two tabwriter row-write arms** in the table renderer. `text/tabwriter` buffers any line containing a tab until `Flush`, so a broken stdout is reported by `Flush` (covered), never by the per-row write.
 - **One `flock` default arm** in the running probe: an error other than `EWOULDBLOCK`, e.g. a filesystem that does not support `flock`. It maps to `unknown`, never to `idle`.
-- **One `debug.ReadBuildInfo` arm** in `--version`: the module version stamped by `go install …@vX.Y.Z`. Under `go test` the main module has no version, so only a real installed binary reaches it.
 - **Three fixture-builder defensive arms**: `json.Marshal` of a `map[string]string` (cannot fail), `db.Put` on a freshly opened LevelDB (no error source without disk faults), and re-creating `LOCK` when LevelDB did not (it always does; the arm guards a future implementation change).
 
 ## Development
 
-`task check` is the gate: gofmt, vet, staticcheck + golangci-lint, `go test -race` (which includes the markdown lint in `docs_test.go`), cross-compile for linux/windows/darwin, and a `go mod tidy` diff check. `task docs:capture -- <args>` regenerates any terminal output shown in the docs against the fixture in `internal/docfixture`.
+`task check` is the gate: gofmt, vet, staticcheck + golangci-lint, `go test -race` (which includes the markdown lint in `docs_test.go`), cross-compile for linux/windows/darwin, and a `go mod tidy` diff check. `task volt:ci` runs volt's equivalent gate plus its skills-frontmatter lint. `task docs:capture -- <args>` regenerates any terminal output shown in the docs against the fixture in `internal/docfixture`.
+
+Releases: `task volt:release:snapshot` builds every platform into `dist/` and publishes nothing; `task volt:release:cli -- --bump patch` tags `browserctrl/vX.Y.Z` and publishes archives, checksums, the skills bundle and (with `HOMEBREW_TAP_GITHUB_TOKEN`) the brew formula; `task volt:release:lib -- --bump patch` tags the Go module bare `vX.Y.Z`, which is what `go install …@latest` resolves. Configuration lives in `cmd/browserctrl/.volt.yml`. Nothing releases on push: `.github/workflows/release.yml` is manual-dispatch by volt's design, and `ci.yml` is manual-dispatch here because the repository is private.
 
 ## Docs
 

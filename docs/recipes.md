@@ -2,7 +2,7 @@
 
 End-to-end workflows. Command output here was captured with `task docs:capture` against the doc fixture, so `browser` reads `custom`; substitute your real browser kinds.
 
-**Contents:** [Claude Code: pick the browser without a prompt](#claude-code-pick-the-browser-without-a-prompt) · [Give every browser a name you will remember](#give-every-browser-a-name-you-will-remember) · [Which "Browser N" is which?](#which-browser-n-is-which) · [Shell: capture an id safely](#shell-capture-an-id-safely) · [jq cookbook](#jq-cookbook) · [Custom user-data dirs](#custom-user-data-dirs) · [Test your own tooling with the fixture package](#test-your-own-tooling-with-the-fixture-package)
+**Contents:** [Claude Code: pick the browser without a prompt](#claude-code-pick-the-browser-without-a-prompt) · [Install the rule as an agent skill](#install-the-rule-as-an-agent-skill) · [Give every browser a name you will remember](#give-every-browser-a-name-you-will-remember) · [Which "Browser N" is which?](#which-browser-n-is-which) · [Shell: capture an id safely](#shell-capture-an-id-safely) · [jq cookbook](#jq-cookbook) · [Custom user-data dirs](#custom-user-data-dirs) · [Test your own tooling with the fixture package](#test-your-own-tooling-with-the-fixture-package)
 
 ## Claude Code: pick the browser without a prompt
 
@@ -50,6 +50,23 @@ $ browserctrl list --running --json
 - `displayName` is the name you gave the extension; once every browser has one (next recipe) the agent can match on that alone.
 
 You can phrase requests as "use my work chrome" or "the legable profile" and the agent resolves them from this list. If you prefer to keep the agent's job even smaller, have it run `browserctrl find <your words> --running` and use whatever id comes back, falling back to the prompt only on exit code 2.
+
+## Install the rule as an agent skill
+
+The CLAUDE.md rule above is also published as `skills/browserctrl-core/SKILL.md`, so a harness that supports the SKILL.md format can install it once instead of every project carrying the paragraph:
+
+```sh
+npx skills add khanakia/browserctrl
+```
+
+The binary is the source of truth for that file. After upgrading `browserctrl`, ask it whether the installed copy still matches:
+
+```
+$ browserctrl skills check <dir-where-the-harness-put-SKILL.md>
+browserctrl-core  current
+```
+
+Exit 0 means current; exit 1 means stale, in which case `browserctrl skills get browserctrl-core` prints the version that matches the binary and the skill's own header tells the agent to prefer that output. Release builds fetch their skill bundle from the matching `browserctrl/vX.Y.Z` release once and cache it; a source build serves the checkout's `skills/` directory, so editing the skill needs no rebuild.
 
 ## Give every browser a name you will remember
 

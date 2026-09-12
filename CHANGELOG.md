@@ -9,12 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 - `browserctrl list` — every Chromium profile with the Claude extension, with device id, running/idle state, sticky MCP-connected flag, browser kind, profile directory, profile name, signed-in email and display name; `--json`, `--running`, `--all`, repeatable `--root`.
 - `browserctrl find <term>...` — resolve free text to exactly one device id; exit `1` on no match, `2` on ambiguity with candidates on stderr; prefers the single running match.
-- `--version` resolved from `-ldflags -X main.version` or the module version embedded by `go install …@vX.Y.Z`.
 - Go package `github.com/khanakia/browserctrl/browser` (`Scan`, `Match`, `OnlyRunning`, `ReadProfiles`, `ReadExtensionStore`, `DefaultRoots`, typed `Kind` / `ExtensionID` / `RunState` constants) and `browser/browsertest` (`Build`, `BuildStore`, `Root`, `WriteStore`, `LockPath`) for browser-free tests.
 - Well-known user-data roots for Chrome, Chrome Beta/Canary/Dev, Chromium, Brave, Edge, Arc, Vivaldi, Opera and Opera GX on macOS, Linux and Windows (macOS verified live; Linux/Windows compile-and-shape tested).
 - Running/idle detection via a shared non-blocking `flock` on the extension LevelDB `LOCK`; `unknown` on Windows.
 - Markdown lint in `docs_test.go`: relative links, GitHub anchor slugs, no `---` rules, no hard-wrapped prose.
 - `internal/docfixture` + `task docs:capture` so every terminal block in the docs is real captured output.
+- `browserctrl skills` (voltkit/skillcmd): `list`, `get`, `path`, `check`, `version`, `refresh` over the published `skills/browserctrl-core/SKILL.md`, always matched to the binary's version; dev builds serve the checkout's `skills/` directory.
+- Release pipeline via volt: `cmd/browserctrl/.volt.yml` (binary, extra files, Homebrew tap `khanakia/homebrew-tap`), `internal/.volt.yml` (never released), manual-dispatch `release.yml` and `ci.yml`, `task volt:ci` / `volt:doctor` / `volt:status` / `volt:gen` / `volt:release:snapshot` / `volt:release:cli` / `volt:release:lib`.
+- `--version` backed by `ubgo/buildinfo`: volt's ldflags stamp, else the `go install` module version, else Go's pseudo-version with short commit and dirty marker.
 
 ### Changed
 ### Deprecated
