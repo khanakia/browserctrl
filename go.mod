@@ -3,8 +3,10 @@ module github.com/khanakia/browserctrl
 go 1.26.4
 
 require (
+	github.com/khanakia/voltkit/skillcmd v0.1.0
 	github.com/spf13/cobra v1.10.2
 	github.com/syndtr/goleveldb v1.0.0
+	github.com/ubgo/buildinfo v0.1.2
 )
 
 require (

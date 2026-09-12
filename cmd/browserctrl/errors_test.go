@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ubgo/buildinfo"
+
 	"github.com/khanakia/browserctrl/browser"
 )
 
@@ -85,23 +87,6 @@ func TestWriteJSON_WriteError(t *testing.T) {
 	}
 }
 
-// Pins resolveVersion's link-time override arm. Not parallel: it mutates the
-// package-level version variable.
-func TestResolveVersion_LinkerStamped(t *testing.T) {
-	old := version
-	t.Cleanup(func() { version = old })
-	version = "v9.9.9"
-	if got := resolveVersion(); got != "v9.9.9" {
-		t.Errorf("got %q", got)
-	}
-	// Under `go test` the build info's Main.Version is empty or "(devel)",
-	// so the default arm must return versionDev.
-	version = versionDev
-	if got := resolveVersion(); got != versionDev {
-		t.Errorf("got %q, want %q under go test", got, versionDev)
-	}
-}
-
 // Pins the --version flag end to end through cobra.
 func TestRun_VersionFlag(t *testing.T) {
 	t.Parallel()
@@ -137,5 +122,52 @@ func TestRun_FindStdoutBroken(t *testing.T) {
 	}
 	if code := run([]string{"find", "a", "--json", "--" + flagRoot, root}, errWriter{}, &se); code != exitFailure {
 		t.Errorf("find --json: exit %d, err %q", code, se.String())
+	}
+}
+
+// Pins releaseVersion: stamped and module versions pass through, an absent
+// version and Go's untagged pseudo-version both map to dev so the skills
+// command serves the live directory instead of fetching a bundle.
+func TestReleaseVersion(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		info buildinfo.Info
+		want string
+	}{
+		{"ldflags stamp", buildinfo.Info{Version: "v0.1.0", Source: buildinfo.SourceLdflags}, "v0.1.0"},
+		{"go install module version", buildinfo.Info{Version: "v0.2.3", Source: buildinfo.SourceModule}, "v0.2.3"},
+		{"pseudo-version from go build", buildinfo.Info{Version: "v0.0.0-20260912061725-90d9f421ae81+dirty", Source: buildinfo.SourceModule}, buildinfo.DevVersion},
+		{"no version", buildinfo.Info{Version: buildinfo.DevVersion, Source: buildinfo.SourceUnknown}, buildinfo.DevVersion},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := releaseVersion(tc.info); got != tc.want {
+				t.Errorf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// Pins versionString: commit and dirty rendering, and no double "dirty" when
+// Go already encoded +dirty in the version.
+func TestVersionString(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		info buildinfo.Info
+		want string
+	}{
+		{"no commit", buildinfo.Info{Version: "dev", Commit: buildinfo.Unknown}, "dev"},
+		{"commit clean", buildinfo.Info{Version: "v0.1.0", Commit: "90d9f421ae81abcdef"}, "v0.1.0 (90d9f42)"},
+		{"commit dirty stamped", buildinfo.Info{Version: "v0.1.0", Commit: "90d9f42", Modified: true}, "v0.1.0 (90d9f42) dirty"},
+		{"pseudo already +dirty", buildinfo.Info{Version: "v0.0.0-2026+dirty", Commit: "90d9f42", Modified: true}, "v0.0.0-2026+dirty (90d9f42)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := versionString(tc.info); got != tc.want {
+				t.Errorf("got %q want %q", got, tc.want)
+			}
+		})
 	}
 }

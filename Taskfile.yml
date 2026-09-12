@@ -97,6 +97,46 @@ tasks:
     cmds:
       - 'test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt needed on the files above"; exit 1; }'
 
+  # ── voltkit (github.com/khanakia/voltkit) ───────────────────────────────
+  # Everything under volt:* shells out to the `volt` binary: it owns the gate
+  # (its own golangci config + SKILL.md lint), release streams, tagging,
+  # archives, checksums, the Homebrew formula and the skills bundle. Install:
+  # `brew install khanakia/tap/volt`. Config: cmd/browserctrl/.volt.yml.
+  volt:ci:
+    desc: '[voltkit] the gate: fmt, vet, golangci-lint (volt config), race tests, SKILL.md lint'
+    cmds:
+      - volt ci --all
+
+  volt:doctor:
+    desc: '[voltkit] is this repo releasable? tools, auth, remote, clean tree, brew token'
+    cmds:
+      - volt doctor
+
+  volt:status:
+    desc: '[voltkit] release streams — last tag, commits since, suggested next version'
+    cmds:
+      - volt status
+
+  volt:gen:
+    desc: '[voltkit] regenerate hash-guarded files (workflows); skills wiring: cd cmd/browserctrl && volt gen skills'
+    cmds:
+      - volt gen {{.CLI_ARGS}}
+
+  volt:release:snapshot:
+    desc: '[voltkit] rehearse the CLI release — every platform + checksums into dist/, publish nothing'
+    cmds:
+      - volt release cmd/browserctrl --snapshot
+
+  volt:release:cli:
+    desc: '[voltkit] release the CLI (tag browserctrl/vX.Y.Z, archives, skills bundle, brew): task volt:release:cli -- --bump patch'
+    cmds:
+      - volt release cmd/browserctrl {{.CLI_ARGS}}
+
+  volt:release:lib:
+    desc: '[voltkit] release the Go module (bare tag vX.Y.Z, what go install @latest resolves): task volt:release:lib -- --bump patch'
+    cmds:
+      - volt release . {{.CLI_ARGS}}
+
   check:
     desc: The real gate — fmt check, vet, lint, tests, cross-compile, tidy check
     cmds:
