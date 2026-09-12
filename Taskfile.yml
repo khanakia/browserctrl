@@ -1,0 +1,108 @@
+version: '3'
+
+vars:
+  BIN: browserctrl
+  # Cross-compile targets: the Linux/Windows root tables are only proven by
+  # compiling, so the check gate builds every OS the roots.go table names.
+  CROSS_TARGETS: linux/amd64 linux/arm64 windows/amd64 darwin/arm64
+
+tasks:
+  default:
+    desc: List tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the CLI into ./bin
+    cmds:
+      - go build -o bin/{{.BIN}} ./cmd/{{.BIN}}
+
+  install:
+    desc: Install the CLI into $GOPATH/bin (or $GOBIN)
+    cmds:
+      - go install ./cmd/{{.BIN}}
+
+  run:
+    desc: List every profile with the Claude extension (running first)
+    cmds:
+      - go run ./cmd/{{.BIN}} list {{.CLI_ARGS}}
+
+  find:
+    desc: 'Print the device id for a query, e.g. task find -- legable'
+    cmds:
+      - go run ./cmd/{{.BIN}} find {{.CLI_ARGS}}
+
+  docs:capture:
+    desc: 'Print real CLI output against the doc fixture, e.g. task docs:capture -- list --json'
+    deps: [build]
+    cmds:
+      - go run ./internal/docfixture .docs-fixture ./bin/{{.BIN}} {{.CLI_ARGS}}
+
+  fmt:
+    desc: gofmt every Go file in place
+    cmds:
+      - gofmt -w .
+
+  vet:
+    desc: go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: staticcheck + golangci-lint (both must be on PATH)
+    cmds:
+      - staticcheck ./...
+      - golangci-lint run ./...
+
+  test:
+    desc: Full test suite with the race detector (includes the markdown lint)
+    cmds:
+      - go test -race ./...
+
+  test:cover:
+    desc: Statement coverage for the whole module, written to cover.out
+    cmds:
+      - go test -coverprofile=cover.out -coverpkg=./... ./...
+      - go tool cover -func=cover.out | tail -1
+
+  test:cover:html:
+    desc: Open the coverage report in a browser
+    deps: [test:cover]
+    cmds:
+      - go tool cover -html=cover.out
+
+  test:uncovered:
+    desc: List every function below 100% statement coverage
+    cmds:
+      - go test -coverprofile=cover.out -coverpkg=./... ./... > /dev/null
+      - 'go tool cover -func=cover.out | grep -v "100.0%" || echo "everything is covered"'
+
+  cover:
+    desc: The measured numbers the README quotes — per package (own tests) and merged total
+    cmds:
+      - echo "── per package (each package's own tests)"
+      - 'go test -cover ./... 2>&1 | grep -E "^ok" | sed -E "s/[[:space:]]+[0-9.]+s//"'
+      - echo "── merged total (every package, -coverpkg=./...)"
+      - go test -coverprofile=cover.out -coverpkg=./... ./... > /dev/null
+      - go tool cover -func=cover.out | tail -1
+
+  cross:
+    desc: Cross-compile for every OS the roots table claims to support
+    cmds:
+      - for: { var: CROSS_TARGETS }
+        cmd: GOOS={{splitList "/" .ITEM | first}} GOARCH={{splitList "/" .ITEM | last}} go build -o /dev/null ./...
+
+  fmt-check:
+    desc: Fail if any Go file is not gofmt-clean (prints the offenders)
+    cmds:
+      - 'test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt needed on the files above"; exit 1; }'
+
+  check:
+    desc: The real gate — fmt check, vet, lint, tests, cross-compile, tidy check
+    cmds:
+      - task: fmt-check
+      - task: vet
+      - task: lint
+      - task: test
+      - task: cross
+      - go mod tidy -diff
