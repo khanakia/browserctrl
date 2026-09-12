@@ -1,0 +1,20 @@
+# browserctrl
+
+> Map Claude-in-Chrome device ids to the Chromium browser, profile and signed-in email behind them, see which profiles are open right now, and resolve a nickname like `work chrome` to an id in one command. CLI + Go library. Reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only: no browser flags, no network.
+
+browserctrl is open source (khanakia/browserctrl). Everything runs locally and read-only; nothing is sent to the cloud.
+
+## Docs
+- [README](https://github.com/khanakia/browserctrl/blob/main/README.md): overview, install, usage, how it works, FAQ
+- [Command reference](https://github.com/khanakia/browserctrl/blob/main/docs/commands.md): every verb and flag with real output, exit codes, JSON shape
+- [Recipes](https://github.com/khanakia/browserctrl/blob/main/docs/recipes.md): Claude Code integration, shell and jq workflows, custom user-data dirs, test fixtures
+- [Go API](https://github.com/khanakia/browserctrl/blob/main/docs/go-api.md): the `browser` and `browser/browsertest` packages
+- [CHANGELOG](https://github.com/khanakia/browserctrl/blob/main/CHANGELOG.md): release history
+- [CONTRIBUTING](https://github.com/khanakia/browserctrl/blob/main/CONTRIBUTING.md): how to contribute, the rules the code follows
+
+## Install
+- Go: `go install github.com/khanakia/browserctrl/cmd/browserctrl@latest`
+- Library: `import "github.com/khanakia/browserctrl/browser"`
+
+## Links
+- Repository: https://github.com/khanakia/browserctrl
