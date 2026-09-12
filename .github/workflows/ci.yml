@@ -4,13 +4,15 @@
 # To change:   edit .volt.yml, or the template in volt itself — edits here are lost.
 # volt:hash 4d9105b82414
 name: ci
-# Trigger changed from the volt template on purpose: nothing runs on push.
-# The local `task check` / `volt ci` is the gate; this workflow re-runs it on
-# a clean runner on demand (Actions tab → Run workflow). To make it automatic,
-# replace the `on:` block with:
-#   on: [push, pull_request]
+# Trigger changed from the volt template on purpose and PERMANENTLY: CI is
+# never automated in this repo. Nothing runs on push, pull request or a
+# schedule. The local `task check` / `volt ci` is the gate; this workflow
+# re-runs the same gate on a clean runner ON DEMAND ONLY:
+#   Actions tab → ci → Run workflow, or
+#   gh workflow run ci.yml --repo khanakia/browserctrl --ref main
 # `volt gen` will report this file as hand-edited and refuse to overwrite it;
-# that is expected — re-apply this comment if you ever `volt gen --force`.
+# that is expected — if you ever `volt gen --force`, restore this trigger and
+# this comment (the template's `on: [push, pull_request]` is a regression).
 on: [workflow_dispatch]
 jobs:
   ci:

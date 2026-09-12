@@ -32,7 +32,7 @@ Requirements: Go 1.26+, [Task](https://taskfile.dev), and for `task lint` both `
 | `task volt:release:snapshot` | build every platform into `dist/` with checksums, publish nothing — the release rehearsal |
 | `task volt:gen` / `task volt:gen -- skills` | regenerate volt's hash-guarded files (workflows + install scripts / the skills wiring) |
 
-There is no CI that runs on push: `ci.yml` is `workflow_dispatch` only (run it from the Actions tab when you want a second opinion on a clean runner) and `release.yml` is manual by volt's design. `task check` on your machine **is** the gate; say in the PR that it passed.
+CI is never automated here: `ci.yml` and `release.yml` are `workflow_dispatch` only, by decision, not by budget. Run the gate on a clean runner when you want a second opinion — Actions tab → ci → Run workflow, or `gh workflow run ci.yml --repo khanakia/browserctrl --ref main`. `task check` on your machine **is** the gate; say in the PR that it passed.
 
 ## Releasing
 
