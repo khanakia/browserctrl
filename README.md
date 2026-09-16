@@ -15,6 +15,9 @@
 
 `browserctrl` is an open-source, local-first browser identity resolver for AI coding agents: it tells you which Chromium browser profile is behind each Claude-in-Chrome **device id** — running or not — so Claude Code's `claude-in-chrome` MCP can `select_browser` the right window first time instead of prompting in every browser. It reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only, needs no `--remote-debugging-port`, sends nothing anywhere, and ships as a CLI (`browserctrl`) plus an importable Go package (`github.com/khanakia/browserctrl/browser`) with a fixture package for tests.
 
+> [!IMPORTANT]
+> **Requires the Claude in Chrome extension, installed in each profile you want to see.** The device id is created by that extension on its first run in a profile and is stored only there — it is not a Chrome identifier, and Chrome scopes extensions **per profile**. A profile without the extension has no id, is invisible to `list_connected_browsers` and `select_browser`, and is therefore not listed by `browserctrl list`, open or not. Installing the extension in `Default` does nothing for `Profile 26`. Run `browserctrl list --profiles` to see which of your profiles are missing it.
+
 ```sh
 go install github.com/khanakia/browserctrl@latest
 ```

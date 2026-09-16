@@ -2,6 +2,9 @@
 
 `browserctrl` maps Claude-in-Chrome device ids to the Chromium browser, profile, signed-in email and display name behind them, says which profiles are open right now, and resolves a nickname to an id. It is a CLI and a Go library (`github.com/khanakia/browserctrl/browser`); the [repository README](../README.md) is the landing page.
 
+> [!IMPORTANT]
+> **Requires the Claude in Chrome extension, installed per profile.** The device id is minted by the extension on its first run in a profile and exists nowhere else, so a profile without the extension has no id and is not listed (see [list --profiles](commands.md#list---profiles)).
+
 ## Install
 
 ```sh

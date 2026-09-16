@@ -4,6 +4,8 @@
 
 browserctrl is open source (khanakia/browserctrl). Everything runs locally and read-only; nothing is sent to the cloud.
 
+Prerequisite: the Claude in Chrome extension must be installed in a profile for that profile to have a device id at all — the extension mints the id on its first run there, and Chrome scopes extensions per profile. A profile without it is invisible to browserctrl and to the MCP's own list_connected_browsers; `browserctrl list --profiles` shows which profiles are missing it.
+
 ## Docs
 - [README](https://github.com/khanakia/browserctrl/blob/main/README.md): overview, install, usage, how it works, FAQ
 - [Command reference](https://github.com/khanakia/browserctrl/blob/main/docs/commands.md): every verb and flag with real output, exit codes, JSON shape
