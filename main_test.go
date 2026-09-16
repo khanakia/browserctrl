@@ -59,6 +59,9 @@ func TestRun_EndToEnd(t *testing.T) {
 		browsertest.ProfileSpec{Dir: "Profile 4", Name: "fresh", Email: "f@x.io", Stores: map[string]map[string]any{
 			ext: {},
 		}},
+		// No Stores at all: the extension is not installed in this profile, so
+		// it must stay out of every listing except `list --profiles`.
+		browsertest.ProfileSpec{Dir: "Profile 26", Name: "analyzify", Email: "hi@analyzify.app"},
 	)
 	exec := func(args ...string) (code int, out, errOut string) {
 		var so, se bytes.Buffer
@@ -90,6 +93,63 @@ func TestRun_EndToEnd(t *testing.T) {
 		}
 		if len(got) != 3 || got[0].Browser != browser.KindCustom {
 			t.Errorf("got %+v", got)
+		}
+	})
+	t.Run("list omits a profile with no extension store", func(t *testing.T) {
+		t.Parallel()
+		code, out, _ := exec("list")
+		if code != exitOK || strings.Contains(out, "analyzify") {
+			t.Errorf("exit %d, uninstalled profile leaked into list:\n%s", code, out)
+		}
+	})
+	t.Run("list --profiles shows it, flagged not installed", func(t *testing.T) {
+		t.Parallel()
+		code, out, _ := exec("list", "--"+flagProfiles)
+		if code != exitOK {
+			t.Fatalf("exit %d", code)
+		}
+		for _, want := range []string{columnExtension, cellExtMissing, cellExtInstalled, "analyzify", "hi@analyzify.app", "id-default"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("table lacks %q:\n%s", want, out)
+			}
+		}
+	})
+	t.Run("list --profiles --json marks the entry Installed=false with no id", func(t *testing.T) {
+		t.Parallel()
+		code, out, _ := exec("list", "--"+flagProfiles, "--"+flagJSON)
+		if code != exitOK {
+			t.Fatalf("exit %d", code)
+		}
+		var got []browser.Entry
+		if err := json.Unmarshal([]byte(out), &got); err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 4 {
+			t.Fatalf("want 4 entries, got %d: %+v", len(got), got)
+		}
+		var missing []browser.Entry
+		for _, e := range got {
+			if !e.Installed {
+				missing = append(missing, e)
+			}
+		}
+		if len(missing) != 1 || missing[0].ProfileDir != "Profile 26" || missing[0].DeviceID != "" || missing[0].Extension != "" {
+			t.Errorf("got %+v", missing)
+		}
+	})
+	t.Run("find never resolves a profile without the extension", func(t *testing.T) {
+		t.Parallel()
+		code, _, _ := exec("find", "analyzify")
+		if code != exitFailure {
+			t.Errorf("exit %d, want %d", code, exitFailure)
+		}
+	})
+	t.Run("list --profiles on a root with no profiles prints the profiles hint", func(t *testing.T) {
+		t.Parallel()
+		var so, se bytes.Buffer
+		code := run([]string{"list", "--" + flagProfiles, "--" + flagRoot, t.TempDir()}, &so, &se)
+		if code != exitOK || !strings.Contains(so.String(), emptyHintProfiles) {
+			t.Errorf("exit %d out %q", code, so.String())
 		}
 	})
 	t.Run("list --all widens to the desktop extension ids", func(t *testing.T) {

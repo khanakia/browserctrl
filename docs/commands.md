@@ -2,7 +2,7 @@
 
 Every verb, every flag, with output captured by `task docs:capture` against the fixture in `internal/docfixture` (four profiles, two of them held open the way a running browser holds them). That is why the `BROWSER` column and `browser` field read `custom` here: the fixture is passed with `--root`, and roots given explicitly are labelled `custom`. On a real machine they read `chrome`, `chrome-beta`, `chrome-canary`, `chrome-dev`, `chromium`, `brave`, `edge`, `arc`, `vivaldi`, `opera`, or `opera-gx`.
 
-**Contents:** [Global flags](#global-flags) · [Shared flags](#shared-flags) · [list](#list) · [find](#find) · [skills](#skills) · [completion](#completion) · [Exit codes](#exit-codes) · [JSON shape](#json-shape) · [Table columns](#table-columns)
+**Contents:** [Global flags](#global-flags) · [Shared flags](#shared-flags) · [list](#list) · [list --profiles](#list---profiles) · [find](#find) · [skills](#skills) · [completion](#completion) · [Exit codes](#exit-codes) · [JSON shape](#json-shape) · [Table columns](#table-columns)
 
 ## Global flags
 
@@ -38,7 +38,7 @@ A volt release build is stamped with the tag (`browserctrl version v0.1.0 (90d9f
 
 ## Shared flags
 
-`list` and `find` take the same four flags, so a query behaves identically whichever verb runs it.
+`list` and `find` take the same four flags, so a query behaves identically whichever verb runs it. `list` takes one more of its own, `--profiles`.
 
 | Flag | Effect |
 |---|---|
@@ -46,14 +46,18 @@ A volt release build is stamped with the tag (`browserctrl version v0.1.0 (90d9f
 | `--running` | Keep only profiles whose state is `running`. `unknown` is excluded on purpose (see [Table columns](#table-columns)). |
 | `--all` | Also scan the two extension ids allowed by the Claude desktop app's native-host manifest, not just the Claude Code extension. Entries carry the `extension` field so they can be told apart. |
 | `--root <dir>` | Scan this Chromium user-data directory **instead of** the well-known install locations. Repeatable. Entries are labelled `browser: custom`. Use it for `--user-data-dir` profiles such as Chrome for Testing or a Playwright persistent context. |
+| `--profiles` (`list` only) | Also list profiles that have **no** Claude extension installed, so a missing profile is visible instead of silently absent. See [list --profiles](#list---profiles). Not on `find`: such a profile has no device id to resolve. |
 
 ## list
 
-Show every profile that has the Claude extension installed, running ones first, then by browser kind, then by profile directory.
+Show every profile that has the Claude extension installed, running ones first, then by browser kind, then by profile directory. A profile where the extension is **not** installed has no device id anywhere on disk, so it is omitted entirely — pass [`--profiles`](#list---profiles) to see those too.
 
 ```
 $ browserctrl list --help
-Show every profile with the Claude extension, running ones first
+Lists one row per profile that has a Claude extension store on disk, which
+is the only place a device id exists. A profile where the extension is not
+installed has no id, cannot be selected by the MCP, and is not listed unless
+you pass --profiles.
 
 Usage:
   browserctrl list [flags]
@@ -61,11 +65,13 @@ Usage:
 Examples:
   browserctrl list
   browserctrl list --running --json
+  browserctrl list --profiles
 
 Flags:
       --all                scan the Claude desktop-app extension ids too, not just Claude Code's
   -h, --help               help for list
       --json               emit JSON instead of a table
+      --profiles           also list profiles that do NOT have the Claude extension installed
       --root stringArray   scan this Chromium user-data dir instead of the well-known ones (repeatable)
       --running            only profiles currently open in a running browser
 ```
@@ -101,7 +107,8 @@ $ browserctrl list --running --json
     "profileDir": "Default",
     "profileName": "Aman",
     "email": "aman@example.com",
-    "extension": "fcoeoabgfenejglbffodgkkbkcdhcgfn"
+    "extension": "fcoeoabgfenejglbffodgkkbkcdhcgfn",
+    "installed": true
   },
   {
     "deviceId": "2aa533d3-d03f-4dd8-b664-f59b8930eccc",
@@ -113,7 +120,8 @@ $ browserctrl list --running --json
     "profileDir": "Profile 5",
     "profileName": "Work",
     "email": "aman@work.example",
-    "extension": "fcoeoabgfenejglbffodgkkbkcdhcgfn"
+    "extension": "fcoeoabgfenejglbffodgkkbkcdhcgfn",
+    "installed": true
   }
 ]
 ```
@@ -125,6 +133,28 @@ no Claude extension stores found (is the extension installed in any profile?)
 ```
 
 The JSON form prints `null` in that case (an empty Go slice), so scripts should treat `null` and `[]` alike.
+
+## list --profiles
+
+Answers "why is my profile not in the list?". Chrome installs extensions **per profile**, and the device id is created by the Claude extension on its first run in that profile. A profile the extension was never installed in therefore has no id, is invisible to `list_connected_browsers` and `select_browser`, and — without this flag — is not printed at all, whether or not it is open right now.
+
+`--profiles` adds one row per such profile and an `EXTENSION` column saying which is which:
+
+```
+$ browserctrl list --profiles
+STATE    EXTENSION      MCP  DEVICE ID                             BROWSER  PROFILE     NAME      EMAIL                 DISPLAY NAME
+running  installed      yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman      aman@example.com      chrome-main
+running  not installed  no   -                                     custom   Profile 26  Personal  personal@example.com  -
+running  installed      yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work      aman@work.example     work-chrome
+idle     installed      yes  f836694e-b2f0-4e5b-93e4-ff946c6183ad  custom   Profile 23  legable   aman@legable.co       aman-legable
+idle     installed      no   -                                     custom   Profile 4   Fresh     fresh@example.com     -
+```
+
+`Profile 26` is the case to recognise: open right now, a real signed-in profile, and completely unusable from Claude Code until the extension is installed in it. Note the two different empty-id rows — `Profile 26` has no extension, `Profile 4` has one that has never connected — which is why the JSON carries an explicit `installed` field rather than leaving you to infer it from an empty `deviceId`.
+
+The `STATE` of a row without the extension is read from that profile's own localStorage LevelDB lock instead of the extension store's, so running/idle is just as real. A profile directory Chromium has never opened has neither lock and reports `unknown`.
+
+`--profiles` composes with the other flags: `--running --profiles` shows only open profiles including the ones missing the extension, and `--json` adds the same rows to the array.
 
 ## find
 
@@ -211,7 +241,8 @@ $ browserctrl find legable --json
   "profileDir": "Profile 23",
   "profileName": "legable",
   "email": "aman@legable.co",
-  "extension": "fcoeoabgfenejglbffodgkkbkcdhcgfn"
+  "extension": "fcoeoabgfenejglbffodgkkbkcdhcgfn",
+  "installed": true
 }
 ```
 
@@ -300,11 +331,12 @@ Both verbs emit the same object; `list` wraps it in an array, `find` prints one.
 | `profileDir` | string | Profile directory name inside the root (`Default`, `Profile 5`). The stable key. |
 | `profileName` | string | Profile label from `Local State`. Empty for browsers that do not populate it (Opera). |
 | `email` | string | Signed-in account from `Local State`, empty if signed out. |
-| `extension` | string | Which extension id this store belongs to. Only differs from the Claude Code id under `--all`. |
+| `extension` | string | Which extension id this store belongs to. Only differs from the Claude Code id under `--all`. Empty when `installed` is false. |
+| `installed` | bool | Whether a Claude extension store exists for this profile. Always `true` except for the extra rows `list --profiles` adds. False means the profile can never yield a device id until the extension is installed in it — distinct from an installed extension that has simply never connected (`installed: true` with an empty `deviceId`). |
 | `error` | string, optional | Why this store could not be read. `deviceId` and `displayName` are empty when set. |
 
 ## Table columns
 
-`STATE` · `MCP` (`yes`/`no` = `mcpConnected`) · `DEVICE ID` · `BROWSER` · `PROFILE` (directory) · `NAME` · `EMAIL` · `DISPLAY NAME`. Empty cells show `-` so columns stay aligned and a missing value cannot be mistaken for a rendering glitch. A row whose store failed to read gets an extra trailing cell `ERROR: <reason>`.
+`STATE` · `MCP` (`yes`/`no` = `mcpConnected`) · `DEVICE ID` · `BROWSER` · `PROFILE` (directory) · `NAME` · `EMAIL` · `DISPLAY NAME`. Empty cells show `-` so columns stay aligned and a missing value cannot be mistaken for a rendering glitch. A row whose store failed to read gets an extra trailing cell `ERROR: <reason>`. `list --profiles` inserts one more column after `STATE`: `EXTENSION`, either `installed` or `not installed`.
 
 Sort order is `running` → `idle` → `unknown`, then browser kind alphabetically, then profile directory. Running entries come first because they are the ones an agent can connect to.

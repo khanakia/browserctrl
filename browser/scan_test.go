@@ -37,9 +37,9 @@ func TestScan(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := []Entry{
-			{DeviceID: "id-default", DisplayName: "chrome1", McpConnected: true, State: RunStateIdle, Browser: KindChrome, BrowserPath: chrome, ProfileDir: "Default", ProfileName: "Aman", Email: "me@x.io", Extension: ExtClaudeCode},
-			{DeviceID: "id-p5", State: RunStateIdle, Browser: KindChrome, BrowserPath: chrome, ProfileDir: "Profile 5", ProfileName: "work", Email: "w@x.io", Extension: ExtClaudeCode},
-			{DeviceID: "id-opera", State: RunStateIdle, Browser: KindOpera, BrowserPath: opera, ProfileDir: "Default", Extension: ExtClaudeCode},
+			{DeviceID: "id-default", DisplayName: "chrome1", McpConnected: true, State: RunStateIdle, Browser: KindChrome, BrowserPath: chrome, ProfileDir: "Default", ProfileName: "Aman", Email: "me@x.io", Extension: ExtClaudeCode, Installed: true},
+			{DeviceID: "id-p5", State: RunStateIdle, Browser: KindChrome, BrowserPath: chrome, ProfileDir: "Profile 5", ProfileName: "work", Email: "w@x.io", Extension: ExtClaudeCode, Installed: true},
+			{DeviceID: "id-opera", State: RunStateIdle, Browser: KindOpera, BrowserPath: opera, ProfileDir: "Default", Extension: ExtClaudeCode, Installed: true},
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("got  %+v\nwant %+v", got, want)
@@ -56,6 +56,50 @@ func TestScan(t *testing.T) {
 		}
 		if got[2].Extension != ExtClaudeDesktop || got[2].DeviceID != "id-p5-desktop" {
 			t.Errorf("desktop ext entry misplaced: %+v", got[2])
+		}
+	})
+	// The "why is my profile missing?" case: Profile 9 has no Claude
+	// extension store, so it is absent by default and present, flagged
+	// Installed=false with no device id, under IncludeAllProfiles.
+	t.Run("IncludeAllProfiles adds profiles that have no extension store", func(t *testing.T) {
+		t.Parallel()
+		opts := Options{Roots: roots, Extensions: []ExtensionID{ExtClaudeCode}, IncludeAllProfiles: true}
+		got, err := Scan(context.Background(), opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 4 {
+			t.Fatalf("want 4 entries (3 installed + 1 profile without the extension), got %d: %+v", len(got), got)
+		}
+		var uninstalled []Entry
+		for _, e := range got {
+			if !e.Installed {
+				uninstalled = append(uninstalled, e)
+			}
+		}
+		if len(uninstalled) != 1 {
+			t.Fatalf("want exactly 1 Installed=false entry, got %+v", uninstalled)
+		}
+		want := Entry{State: RunStateIdle, Browser: KindChrome, BrowserPath: chrome, ProfileDir: "Profile 9", ProfileName: "no-ext", Email: "n@x.io"}
+		if !reflect.DeepEqual(uninstalled[0], want) {
+			t.Errorf("got  %+v\nwant %+v", uninstalled[0], want)
+		}
+	})
+	t.Run("IncludeAllProfiles does not duplicate a profile that has any store", func(t *testing.T) {
+		t.Parallel()
+		// Profile 5 holds two extension stores; with --all it must yield two
+		// rows and no extra "not installed" row.
+		got, err := Scan(context.Background(), Options{Roots: roots, IncludeAllProfiles: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range got {
+			if e.ProfileDir == "Profile 5" && !e.Installed {
+				t.Errorf("Profile 5 has stores but got an uninstalled row: %+v", e)
+			}
+		}
+		if len(got) != 5 {
+			t.Errorf("want 5 entries (4 stores + Profile 9), got %d: %+v", len(got), got)
 		}
 	})
 	t.Run("unreadable store is reported inline, scan continues", func(t *testing.T) {

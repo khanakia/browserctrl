@@ -7,7 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- `browserctrl list --profiles` — also list profiles that have **no** Claude extension installed, with an `EXTENSION` column (`installed` / `not installed`). A profile without the extension has no device id, is invisible to `list_connected_browsers` and `select_browser`, and was previously omitted from `list` with no explanation; this flag makes "my profile is open but missing" answerable. Running/idle for such a profile is read from the profile's own localStorage LevelDB `LOCK`, so its state is as real as an installed profile's.
+- `browser.Options.IncludeAllProfiles` and `browser.Entry.Installed` (JSON `installed`) backing that flag, plus `browsertest.ProfileLockPath` for simulating a running profile that has no extension store. `browsertest.Build` now creates each profile's localStorage LevelDB, as Chromium does.
+
 ### Changed
+- Documented throughout that the device id is minted by the Claude extension per profile and exists nowhere else: new README FAQ entry for a profile missing from `list`, a `list --profiles` section in the command reference, a recipe telling the three empty-id cases apart, and a "when the user says a browser is missing" section in the agent skill.
+- `list --help` gained a long description spelling out the same precondition.
 ### Deprecated
 ### Removed
 ### Fixed
