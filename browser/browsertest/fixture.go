@@ -28,6 +28,13 @@ const (
 	localStateFile       = "Local State"
 	extensionSettingsDir = "Local Extension Settings"
 	lockFile             = "LOCK"
+	// localStorageDir/localStorageLevelDBDir is the profile's own DOM
+	// localStorage LevelDB. Chromium creates it for every profile it opens,
+	// extension or not, so the fixture creates it for every profile too —
+	// that LOCK is what the scanner probes to tell whether a profile with no
+	// Claude extension is running.
+	localStorageDir        = "Local Storage"
+	localStorageLevelDBDir = "leveldb"
 )
 
 // Storage keys the Claude extension writes (see browser/constants.go).
@@ -74,6 +81,11 @@ func Build(root string, profiles ...ProfileSpec) error {
 		infoCache[p.Dir] = map[string]string{"name": p.Name, "user_name": p.Email}
 		if err := os.MkdirAll(filepath.Join(root, p.Dir), fixtureDirMode); err != nil {
 			return fmt.Errorf("mkdir profile %s: %w", p.Dir, err)
+		}
+		// Every profile gets the localStorage LevelDB, with no keys: the
+		// scanner never reads its contents, only flock()s its LOCK.
+		if err := BuildStore(profileLevelDBDir(root, p.Dir), nil); err != nil {
+			return err
 		}
 		for ext, kv := range p.Stores {
 			if err := BuildStore(filepath.Join(root, p.Dir, extensionSettingsDir, ext), kv); err != nil {
@@ -149,4 +161,15 @@ func WriteStore(t testing.TB, dir string, kv map[string]any) {
 // LockPath returns the LOCK file path for an extension store under root.
 func LockPath(root, profileDir, ext string) string {
 	return filepath.Join(root, profileDir, extensionSettingsDir, ext, lockFile)
+}
+
+// ProfileLockPath returns the LOCK file of the profile's own localStorage
+// LevelDB — the lock a caller holds to simulate a running profile that has no
+// Claude extension installed (browser.Options.IncludeAllProfiles reads it).
+func ProfileLockPath(root, profileDir string) string {
+	return filepath.Join(profileLevelDBDir(root, profileDir), lockFile)
+}
+
+func profileLevelDBDir(root, profileDir string) string {
+	return filepath.Join(root, profileDir, localStorageDir, localStorageLevelDBDir)
 }

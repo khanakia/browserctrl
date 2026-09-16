@@ -43,6 +43,9 @@ const (
 	flagRunning = "running"
 	flagAll     = "all"
 	flagRoot    = "root"
+	// flagProfiles is on `list` only: `find` resolves a device id, and a
+	// profile without an extension has none to resolve.
+	flagProfiles = "profiles"
 )
 
 // version is the binary's release version, used by the generated
@@ -85,6 +88,9 @@ type listFlags struct {
 	// roots, when non-empty, REPLACES the well-known install locations with
 	// the given user-data dirs (labelled browser=custom).
 	roots []string
+	// profiles widens the listing to profiles with no Claude extension, which
+	// are otherwise invisible — the "why is my profile missing?" answer.
+	profiles bool
 }
 
 func main() {
@@ -169,8 +175,13 @@ func newListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "Show every profile with the Claude extension, running ones first",
+		Long: `Lists one row per profile that has a Claude extension store on disk, which
+is the only place a device id exists. A profile where the extension is not
+installed has no id, cannot be selected by the MCP, and is not listed unless
+you pass --profiles.`,
 		Example: `  browserctrl list
-  browserctrl list --running --json`,
+  browserctrl list --running --json
+  browserctrl list --profiles`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			entries, err := scan(cmd.Context(), f)
@@ -180,10 +191,14 @@ func newListCmd() *cobra.Command {
 			if f.json {
 				return writeJSON(cmd.OutOrStdout(), entries)
 			}
+			if f.profiles {
+				return writeProfilesTable(cmd.OutOrStdout(), entries)
+			}
 			return writeTable(cmd.OutOrStdout(), entries)
 		},
 	}
 	addListFlags(cmd, &f)
+	cmd.Flags().BoolVar(&f.profiles, flagProfiles, false, "also list profiles that do NOT have the Claude extension installed")
 	return cmd
 }
 
@@ -234,6 +249,7 @@ func scan(ctx context.Context, f listFlags) ([]browser.Entry, error) {
 	if f.all {
 		opts.Extensions = browser.ExtensionValues
 	}
+	opts.IncludeAllProfiles = f.profiles
 	for _, r := range f.roots {
 		opts.Roots = append(opts.Roots, browser.Root{Kind: browser.KindCustom, Path: r})
 	}

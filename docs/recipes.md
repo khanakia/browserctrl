@@ -2,7 +2,7 @@
 
 End-to-end workflows. Command output here was captured with `task docs:capture` against the doc fixture, so `browser` reads `custom`; substitute your real browser kinds.
 
-**Contents:** [Claude Code: pick the browser without a prompt](#claude-code-pick-the-browser-without-a-prompt) · [Install the rule as an agent skill](#install-the-rule-as-an-agent-skill) · [Give every browser a name you will remember](#give-every-browser-a-name-you-will-remember) · [Which "Browser N" is which?](#which-browser-n-is-which) · [Shell: capture an id safely](#shell-capture-an-id-safely) · [jq cookbook](#jq-cookbook) · [Custom user-data dirs](#custom-user-data-dirs) · [Test your own tooling with the fixture package](#test-your-own-tooling-with-the-fixture-package)
+**Contents:** [Claude Code: pick the browser without a prompt](#claude-code-pick-the-browser-without-a-prompt) · [Install the rule as an agent skill](#install-the-rule-as-an-agent-skill) · [Give every browser a name you will remember](#give-every-browser-a-name-you-will-remember) · [Which "Browser N" is which?](#which-browser-n-is-which) · [A profile is missing from the list](#a-profile-is-missing-from-the-list) · [Shell: capture an id safely](#shell-capture-an-id-safely) · [jq cookbook](#jq-cookbook) · [Custom user-data dirs](#custom-user-data-dirs) · [Test your own tooling with the fixture package](#test-your-own-tooling-with-the-fixture-package)
 
 ## Claude Code: pick the browser without a prompt
 
@@ -28,7 +28,8 @@ $ browserctrl list --running --json
     "profileDir": "Default",
     "profileName": "Aman",
     "email": "aman@example.com",
-    "extension": "fcoeoabgfenejglbffodgkkbkcdhcgfn"
+    "extension": "fcoeoabgfenejglbffodgkkbkcdhcgfn",
+    "installed": true
   },
   {
     "deviceId": "2aa533d3-d03f-4dd8-b664-f59b8930eccc",
@@ -40,7 +41,8 @@ $ browserctrl list --running --json
     "profileDir": "Profile 5",
     "profileName": "Work",
     "email": "aman@work.example",
-    "extension": "fcoeoabgfenejglbffodgkkbkcdhcgfn"
+    "extension": "fcoeoabgfenejglbffodgkkbkcdhcgfn",
+    "installed": true
   }
 ]
 ```
@@ -93,6 +95,31 @@ running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  am
 The `DEVICE ID` column is byte-for-byte the `deviceId` in `list_connected_browsers`. The `name` there (`Browser 1`) is assigned per listing and can change between calls; the id does not, so always match on the id.
 
 If a connected browser does **not** appear in `list --running`, it is using a profile in a location the tool does not scan by default — pass its user-data dir with `--root` (next recipes) or open an issue naming the browser.
+
+## A profile is missing from the list
+
+The symptom: a Chrome profile you have open right now, signed in and working, does not appear in `browserctrl list` at all — not even as `idle`.
+
+The cause is almost always that the Claude extension is not installed in **that** profile. Chrome scopes extensions per profile, and the device id is minted by the extension the first time it runs in one, so a profile without the extension has no id to report, no store for browserctrl to read, and no presence in the MCP's `list_connected_browsers` either. `list` omits it because a row with nothing selectable in it is noise; `--profiles` is the switch that turns that omission into an explicit answer:
+
+```sh
+browserctrl list --profiles
+```
+
+Look for the profile with `EXTENSION: not installed`. Its `STATE` is still real (read from the profile's own localStorage lock), so a row reading `running  not installed` is exactly the confusing case: the window is open, and Claude Code still cannot see it. Install Claude in Chrome from that window, then re-run `browserctrl list` — the row appears as soon as the extension has written its id.
+
+Two nearby cases worth telling apart:
+
+| Symptom | Meaning | Fix |
+|---|---|---|
+| Profile absent from `list`, shown by `--profiles` as `not installed` | no extension in that profile | install the extension in that window |
+| Listed with an empty `DEVICE ID` and `MCP no` | extension installed, never connected | open the extension in that window and connect it once |
+| Listed with an id but `STATE idle` | extension fine, browser closed | open the browser; `select_browser` needs a running profile |
+
+```sh
+# scriptable version: which profiles have no extension?
+browserctrl list --profiles --json | jq -r '.[] | select(.installed | not) | "\(.browser)\t\(.profileDir)\t\(.email)"'
+```
 
 ## Shell: capture an id safely
 

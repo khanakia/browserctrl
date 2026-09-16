@@ -12,6 +12,19 @@ import (
 // row and the data rows cannot drift apart.
 var tableHeader = []string{"STATE", "MCP", "DEVICE ID", "BROWSER", "PROFILE", "NAME", "EMAIL", "DISPLAY NAME"}
 
+// profilesTableHeader is tableHeader plus the EXTENSION column, used by
+// `list --profiles` where rows without the extension are included and the
+// reason a row has no device id has to be visible.
+var profilesTableHeader = append([]string{tableHeader[0], columnExtension}, tableHeader[1:]...)
+
+// columnExtension and its cells: the answer to "why does this profile have no
+// device id?" — not installed means the MCP cannot see the profile at all.
+const (
+	columnExtension  = "EXTENSION"
+	cellExtInstalled = "installed"
+	cellExtMissing   = "not installed"
+)
+
 // MCP column cells: "yes" = extension has completed an MCP handshake before.
 const (
 	cellMcpYes = "yes"
@@ -33,17 +46,45 @@ const (
 // writeTable renders entries as an aligned text table. An empty slice prints
 // only a hint line — an empty table with just a header reads like a bug.
 func writeTable(w io.Writer, entries []browser.Entry) error {
+	return renderTable(w, entries, false)
+}
+
+// writeProfilesTable is writeTable for `list --profiles`: same rows plus the
+// EXTENSION column, and an empty-slice hint that talks about profiles rather
+// than extension stores (in this mode "nothing found" means no profile at
+// all, which is a different problem).
+func writeProfilesTable(w io.Writer, entries []browser.Entry) error {
+	return renderTable(w, entries, true)
+}
+
+// emptyHint lines, one per mode — see writeTable / writeProfilesTable.
+const (
+	emptyHintStores   = "no Claude extension stores found (is the extension installed in any profile?)"
+	emptyHintProfiles = "no browser profiles found (is any Chromium browser installed, or is --root wrong?)"
+)
+
+// renderTable is the shared body. showExtension adds the EXTENSION column;
+// the header and the row builder read from the same switch so they cannot
+// drift apart.
+func renderTable(w io.Writer, entries []browser.Entry, showExtension bool) error {
+	header, hint := tableHeader, emptyHintStores
+	if showExtension {
+		header, hint = profilesTableHeader, emptyHintProfiles
+	}
 	if len(entries) == 0 {
-		_, err := fmt.Fprintln(w, "no Claude extension stores found (is the extension installed in any profile?)")
+		_, err := fmt.Fprintln(w, hint)
 		return err
 	}
 	tw := tabwriter.NewWriter(w, tableMinWidth, tableTabWidth, tablePadding, tablePadChar, 0)
-	if err := writeRow(tw, tableHeader...); err != nil {
+	if err := writeRow(tw, header...); err != nil {
 		return err
 	}
 	for _, e := range entries {
-		row := []string{
-			string(e.State),
+		row := []string{string(e.State)}
+		if showExtension {
+			row = append(row, installedCell(e.Installed))
+		}
+		row = append(row,
 			yesNo(e.McpConnected),
 			orPlaceholder(e.DeviceID),
 			string(e.Browser),
@@ -51,7 +92,7 @@ func writeTable(w io.Writer, entries []browser.Entry) error {
 			orPlaceholder(e.ProfileName),
 			orPlaceholder(e.Email),
 			orPlaceholder(e.DisplayName),
-		}
+		)
 		if e.Error != "" {
 			// Surface the per-entry read failure inline rather than hiding it.
 			row = append(row, "ERROR: "+e.Error)
@@ -74,6 +115,13 @@ func writeRow(w io.Writer, cells ...string) error {
 		}
 	}
 	return nil
+}
+
+func installedCell(installed bool) string {
+	if installed {
+		return cellExtInstalled
+	}
+	return cellExtMissing
 }
 
 func yesNo(b bool) string {

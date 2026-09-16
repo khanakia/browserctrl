@@ -29,6 +29,7 @@ browserctrl find <terms...>         # prints exactly one device id; every term m
 browserctrl find work --running     # same, restricted to open browsers
 browserctrl list --root <dir>       # scan a --user-data-dir profile (Chrome for Testing, Playwright)
 browserctrl list --all              # include the Claude desktop-app extension ids
+browserctrl list --profiles         # also show profiles with NO extension (why one is missing)
 ```
 
 Exit codes: `0` ok, `1` failure or no match, `2` ambiguous (candidates printed on stderr, stdout empty). On `2`, add a term — `browserctrl find chrome main` — or fall back to the prompt.
@@ -43,6 +44,7 @@ Exit codes: `0` ok, `1` failure or no match, `2` ambiguous (candidates printed o
 | `browser` | `chrome`, `edge`, `brave`, `vivaldi`, `opera`, `arc`, `chromium`, … or `custom` for `--root` |
 | `profileDir` / `profileName` / `email` | from Chromium's `Local State`; email is the most reliable human key |
 | `displayName` | the name the user typed when connecting the extension; ask the user to name each browser once, then match on it |
+| `installed` | always `true` in a normal listing; `false` only for the extra rows `--profiles` adds, meaning that profile has no Claude extension and therefore no id |
 
 ## Worked example
 
@@ -54,3 +56,7 @@ f836694e-b2f0-4e5b-93e4-ff946c6183ad
 ```
 
 → `select_browser(deviceId: "f836694e-b2f0-4e5b-93e4-ff946c6183ad")`, then proceed. If the exit code is `1`, tell the user that profile is not open (it will appear as `idle` in `browserctrl list`) rather than guessing another window.
+
+## When the user says a browser is missing
+
+If the user insists a profile is open but no entry matches it, do **not** fall back to guessing another window. Run `browserctrl list --profiles` and look for that profile with `EXTENSION: not installed`. That means the Claude extension was never installed in that Chrome profile — extensions are per profile, and the device id is created by the extension on its first run — so no id exists, `list_connected_browsers` cannot see it either, and the only fix is for the user to install Claude in Chrome in that specific window. Tell them that instead of retrying.

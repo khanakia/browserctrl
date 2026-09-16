@@ -4,8 +4,9 @@
 //
 // Why it exists: every command example in README.md and docs/ must be real
 // captured output, never typed by hand. This tool builds a deterministic fake
-// Chromium root (browsertest.Build), holds the LevelDB lock of two profiles
-// exactly the way a running browser does, and then runs browserctrl against
+// Chromium root (browsertest.Build), holds the LevelDB locks that a running
+// browser holds (an extension store's, and for a profile with no extension
+// the profile's own localStorage store), and then runs browserctrl against
 // that root so the capture shows genuine running/idle rows. Re-run it after
 // any output change and paste the result (`task docs:capture`).
 //
@@ -51,11 +52,19 @@ var fixtureProfiles = []browsertest.ProfileSpec{
 	{Dir: "Profile 4", Name: "Fresh", Email: "fresh@example.com", Stores: map[string]map[string]any{
 		string(browser.ExtClaudeCode): {"selectedModel": "claude-sonnet-5"},
 	}},
+	// No extension at all: open right now, yet invisible to `list` and to the
+	// MCP. Only `list --profiles` shows it — the case the docs must explain.
+	{Dir: "Profile 26", Name: "Personal", Email: "personal@example.com"},
 }
 
-// runningProfiles are the fixture profiles whose LOCK this tool holds while
-// browserctrl runs, so they report as running.
+// runningProfiles are the fixture profiles whose extension-store LOCK this
+// tool holds while browserctrl runs, so they report as running.
 var runningProfiles = []string{"Default", "Profile 5"}
+
+// runningProfilesWithoutExtension are held by their profile-level
+// localStorage LOCK instead — the only running signal a profile with no
+// extension store has. Each must be a fixture profile with no Stores.
+var runningProfilesWithoutExtension = []string{"Profile 26"}
 
 func main() {
 	os.Exit(run(os.Args, os.Stdout, os.Stderr))
@@ -108,8 +117,15 @@ func holdLocks(root string) (release func(), err error) {
 			_ = f.Close() // closing drops the flock; nothing was written
 		}
 	}
+	paths := map[string]string{}
 	for _, dir := range runningProfiles {
-		f, err := os.OpenFile(browsertest.LockPath(root, dir, string(browser.ExtClaudeCode)), os.O_RDWR, 0)
+		paths[dir] = browsertest.LockPath(root, dir, string(browser.ExtClaudeCode))
+	}
+	for _, dir := range runningProfilesWithoutExtension {
+		paths[dir] = browsertest.ProfileLockPath(root, dir)
+	}
+	for dir, path := range paths {
+		f, err := os.OpenFile(path, os.O_RDWR, 0)
 		if err != nil {
 			release()
 			return nil, fmt.Errorf("open LOCK for %s: %w", dir, err)

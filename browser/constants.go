@@ -99,6 +99,15 @@ const (
 	// defaultProfileDir is the profile Chromium creates first; used as a
 	// fallback when `Local State` has no info_cache (fresh install).
 	defaultProfileDir = "Default"
+	// localStorageDir / localStorageLevelDBDir locate the profile's DOM
+	// localStorage LevelDB (`<profile>/Local Storage/leveldb`). Chromium opens
+	// it for every profile it has open, whatever extensions are installed, so
+	// its LOCK is the running signal for a profile that has no Claude
+	// extension store to probe. Verified against a live Chrome on 2026-09-16:
+	// it reported held/free identically to the extension store's LOCK for
+	// every profile that had both.
+	localStorageDir        = "Local Storage"
+	localStorageLevelDBDir = "leveldb"
 )
 
 // chrome.storage.local keys the Claude extension writes. Values are JSON
