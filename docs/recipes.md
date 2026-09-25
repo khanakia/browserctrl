@@ -91,9 +91,9 @@ When the MCP reports `Browser 1 / 2 / 3` and you need to know which window each 
 
 ```
 $ browserctrl list --running
-STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME
-running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main
-running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome
+STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   other account 1
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   other account 1
 ```
 
 The `DEVICE ID` column is byte-for-byte the `deviceId` in `list_connected_browsers`. The `name` there (`Browser 1`) is assigned per listing and can change between calls; the id does not, so always match on the id.
@@ -169,9 +169,9 @@ Ambiguity looks like this and leaves stdout empty, so `$id` stays unset rather t
 ```
 $ browserctrl find chrome
 error: query matches more than one browser
-STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME
-running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main
-running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome
+STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   other account 1
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   other account 1
 ```
 
 ## jq cookbook

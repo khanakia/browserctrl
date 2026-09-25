@@ -271,9 +271,9 @@ Ambiguous (both `chrome-main` and `work-chrome` contain `chrome` and both are ru
 ```
 $ browserctrl find chrome
 error: query matches more than one browser
-STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME
-running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main
-running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome
+STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   other account 1
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   other account 1
 ```
 
 Everything above goes to stderr; stdout stays empty so `$(…)` captures nothing rather than garbage. Add a term to disambiguate: `browserctrl find chrome main`.

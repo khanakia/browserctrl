@@ -1,8 +1,10 @@
 # browserctrl
 
-> Map Claude-in-Chrome device ids to the Chromium browser, profile and signed-in email behind them, see which profiles are open right now, and resolve a nickname like `work chrome` to an id in one command. CLI + Go library. Reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only: no browser flags, no network.
+> Map Claude-in-Chrome device ids to the Chromium browser, profile, signed-in email and Claude account behind them, see which profiles are open right now, and resolve a nickname like `work chrome` to an id in one command. Supports multiple Claude accounts. CLI + Go library. Reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only: no browser flags, no network.
 
 browserctrl is open source (khanakia/browserctrl). Everything runs locally and read-only; nothing is sent to the cloud.
+
+Multiple Claude accounts: `list` shows a CLAUDE ACCOUNT column, because the MCP's list_connected_browsers only reports browsers signed in to the same Claude account as the session asking — a browser on another account is unreachable from it however open it is. The signed-in account is named by email; others show as "other account" and can be named with --account-alias, since Claude stores no email for them on disk.
 
 Prerequisite: the Claude in Chrome extension must be installed in a profile for that profile to have a device id at all — the extension mints the id on its first run there, and Chrome scopes extensions per profile. A profile without it is invisible to browserctrl and to the MCP's own list_connected_browsers; `browserctrl list --profiles` shows which profiles are missing it.
 

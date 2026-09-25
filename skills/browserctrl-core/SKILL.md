@@ -23,7 +23,7 @@ The `deviceId` field is byte-for-byte the id `list_connected_browsers` reports; 
 ## Commands
 
 ```sh
-browserctrl list                    # table: STATE MCP DEVICE ID BROWSER PROFILE NAME EMAIL DISPLAY NAME
+browserctrl list                    # table: STATE MCP DEVICE ID BROWSER PROFILE NAME EMAIL DISPLAY NAME CLAUDE ACCOUNT
 browserctrl list --running --json   # only open profiles, as JSON — what an agent should read
 browserctrl find <terms...>         # prints exactly one device id; every term must match some field
 browserctrl find work --running     # same, restricted to open browsers

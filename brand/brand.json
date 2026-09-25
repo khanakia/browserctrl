@@ -2,26 +2,52 @@
   "name": "browserctrl",
   "binary": "browserctrl",
   "tagline": "Which browser is that device id? Answered from disk, in one command.",
-  "description": "Map Claude-in-Chrome device ids to the Chromium browser, profile and signed-in email behind them, see which profiles are open right now, and resolve a nickname like `work chrome` to an id in one command. CLI + Go library. Reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only: no browser flags, no network.",
+  "description": "Map Claude-in-Chrome device ids to the Chromium browser, profile, signed-in email and Claude account behind them, see which profiles are open right now, and resolve a nickname like `work chrome` to an id in one command. Supports multiple Claude accounts, so you can tell a browser this session cannot reach from one that simply is not connected. CLI + Go library. Reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only: no browser flags, no network.",
   "repo": "khanakia/browserctrl",
   "module": "github.com/khanakia/browserctrl",
   "homepage": "https://pkg.go.dev/github.com/khanakia/browserctrl",
   "language": "go",
   "kind": "library+cli",
   "license": "Apache-2.0",
-  "author": { "name": "khanakia", "email": "khanakia@gmail.com", "github": "khanakia" },
+  "author": {
+    "name": "khanakia",
+    "email": "khanakia@gmail.com",
+    "github": "khanakia"
+  },
   "topics": [
-    "claude", "claude-code", "claude-in-chrome", "mcp", "chrome", "chromium", "chrome-profiles",
-    "chrome-extension", "browser", "browser-automation", "ai-agents", "developer-tools",
-    "cli", "golang", "go", "local-first", "leveldb", "devtools"
+    "claude",
+    "claude-code",
+    "claude-in-chrome",
+    "mcp",
+    "chrome",
+    "chromium",
+    "chrome-profiles",
+    "chrome-extension",
+    "browser",
+    "browser-automation",
+    "ai-agents",
+    "developer-tools",
+    "cli",
+    "golang",
+    "go",
+    "local-first",
+    "leveldb",
+    "multi-account",
+    "claude-account",
+    "chrome-profile-manager"
   ],
   "positioning": {
     "category": "browser identity resolver for AI coding agents",
     "audience": "developers running Claude Code with several Chromium browsers or profiles open",
     "wedge": "the MCP only reports opaque device ids and unstable 'Browser N' labels, so picking the right window means clicking a confirmation prompt in every browser, every session",
-    "alternatives": ["MCP switch_browser prompt", "reading chrome://version or the extension popup by hand", "DevTools-protocol tooling with --remote-debugging-port"],
+    "alternatives": [
+      "MCP switch_browser prompt",
+      "reading chrome://version or the extension popup by hand",
+      "DevTools-protocol tooling with --remote-debugging-port"
+    ],
     "differentiators": [
       "answers from disk: extension LevelDB + Local State, no browser flags, no relaunch",
+      "supports multiple Claude accounts: shows which Claude account each profile is signed in to, so an unreachable browser is obvious instead of a mystery error",
       "knows which profiles are open right now via the LevelDB lock, and lists closed ones too",
       "nickname to id: `browserctrl find legable` prints one id or a distinct exit code",
       "read-only by construction: stores are snapshotted and opened read-only, the probe is a shared non-blocking flock",
@@ -32,6 +58,8 @@
   "install": {
     "go": "go install github.com/khanakia/browserctrl@latest"
   },
-  "khanakia": { "addToApps": false },
+  "khanakia": {
+    "addToApps": false
+  },
   "brandKit": false
 }
