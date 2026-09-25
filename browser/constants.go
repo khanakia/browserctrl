@@ -120,4 +120,16 @@ const (
 	// "has connected at some point", not "connected right now"; combine with
 	// RunState for the live answer.
 	storageKeyMcpConnected = "mcpConnected"
+	// storageKeyAccountUUID is the Claude account the extension is signed in
+	// as. It matters because `list_connected_browsers` only ever reports
+	// browsers on the SAME account as the running session, so a browser signed
+	// into a different account can be open, connected and still unreachable.
+	// Absent until the user signs in (a fresh install has an empty store).
+	storageKeyAccountUUID = "accountUuid"
+	// storageKeyTokenOrg is a JSON OBJECT, not a string: {"hybrid":bool,
+	// "uuid":string}, whose uuid is the organization the current token belongs
+	// to. Prefer it over `lastActiveOrgHint`, which is a stale display hint —
+	// on a real profile the two disagreed after an account switch (Opera,
+	// 2026-09-25: hint pointed at the previous account's org).
+	storageKeyTokenOrg = "tokenOrg"
 )

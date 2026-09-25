@@ -47,24 +47,28 @@ func TestRun_ScanErrorExits1(t *testing.T) {
 
 // Pins writeTable's error arms: header write failure, and the extra ERROR
 // cell for an entry whose store could not be read.
+// testLabeler is the real labeler with nothing to resolve from, i.e. what a
+// machine without Claude Code signed in produces.
+func testLabeler() accountLabeler { return newAccountLabeler(browser.ClaudeAccount{}, nil, nil) }
+
 func TestWriteTable(t *testing.T) {
 	t.Parallel()
 	t.Run("header write failure", func(t *testing.T) {
 		t.Parallel()
-		if err := writeTable(errWriter{}, []browser.Entry{{DeviceID: "x"}}); !errors.Is(err, errSink) {
+		if err := writeTable(errWriter{}, []browser.Entry{{DeviceID: "x"}}, testLabeler()); !errors.Is(err, errSink) {
 			t.Errorf("err = %v", err)
 		}
 	})
 	t.Run("empty-list hint write failure", func(t *testing.T) {
 		t.Parallel()
-		if err := writeTable(errWriter{}, nil); !errors.Is(err, errSink) {
+		if err := writeTable(errWriter{}, nil, testLabeler()); !errors.Is(err, errSink) {
 			t.Errorf("err = %v", err)
 		}
 	})
 	t.Run("error row gets an ERROR cell", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
-		err := writeTable(&buf, []browser.Entry{{ProfileDir: "Default", State: browser.RunStateIdle, Error: "boom"}})
+		err := writeTable(&buf, []browser.Entry{{ProfileDir: "Default", State: browser.RunStateIdle, Error: "boom"}}, testLabeler())
 		if err != nil || !strings.Contains(buf.String(), "ERROR: boom") {
 			t.Errorf("err %v out %q", err, buf.String())
 		}

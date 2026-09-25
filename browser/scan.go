@@ -30,6 +30,15 @@ type Entry struct {
 	ProfileDir  string `json:"profileDir"`
 	ProfileName string `json:"profileName"`
 	Email       string `json:"email"`
+	// AccountUUID / OrgUUID are the Claude account and organization the
+	// extension is signed in as (empty when signed out, or on an
+	// Installed=false entry). They decide REACHABILITY: the MCP's
+	// list_connected_browsers only reports browsers on the same account as
+	// the running session, so an entry whose AccountUUID differs from the
+	// session's can be running, connected and still unselectable. No email
+	// is stored anywhere on disk for these — see ClaudeAccount.
+	AccountUUID string `json:"accountUuid"`
+	OrgUUID     string `json:"orgUuid"`
 	// Extension is which Claude extension id this store belongs to. Empty
 	// on an Installed=false entry — there is no store to attribute.
 	Extension ExtensionID `json:"extension"`
@@ -125,6 +134,8 @@ func scanOne(ctx context.Context, root Root, p Profile, ext ExtensionID) (Entry,
 		DeviceID:     rec.DeviceID,
 		DisplayName:  rec.DisplayName,
 		McpConnected: rec.McpConnected,
+		AccountUUID:  rec.AccountUUID,
+		OrgUUID:      rec.OrgUUID,
 		State:        probeLock(filepath.Join(dir, levelDBLockFile)),
 		Browser:      root.Kind,
 		BrowserPath:  root.Path,

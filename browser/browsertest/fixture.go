@@ -42,6 +42,11 @@ const (
 	KeyBridgeDeviceID    = "bridgeDeviceId"
 	KeyBridgeDisplayName = "bridgeDisplayName"
 	KeyMcpConnected      = "mcpConnected"
+	// KeyAccountUUID is the signed-in Claude account; KeyTokenOrg is an
+	// OBJECT ({"hybrid":bool,"uuid":string}), so a fixture writes a
+	// map[string]any for it, not a string.
+	KeyAccountUUID = "accountUuid"
+	KeyTokenOrg    = "tokenOrg"
 )
 
 // Directory and file modes for the fixture. Chromium itself creates 0700
