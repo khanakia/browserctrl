@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.1.3] - 2026-09-25
+
+### Added
 - README: an **Examples** section with a captured block per command (list, `--running`, `find`, an ambiguous `find`, `--profiles`, and the JSON/jq one-liners), and a **Multiple Claude accounts** section explaining the "No connected browser has deviceId …" case end to end.
 
 ### Changed
@@ -73,7 +82,8 @@ Release process:
   3. Tag the release (e.g. v1.2.0) and update the link refs at the bottom.
 -->
 
-[Unreleased]: https://github.com/khanakia/browserctrl/compare/v0.1.2...main
+[Unreleased]: https://github.com/khanakia/browserctrl/compare/v0.1.3...main
+[0.1.3]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.3
 [0.1.2]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.2
 [0.1.1]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.1
 [0.1.0]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.0
