@@ -7,7 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- README: an **Examples** section with a captured block per command (list, `--running`, `find`, an ambiguous `find`, `--profiles`, and the JSON/jq one-liners), and a **Multiple Claude accounts** section explaining the "No connected browser has deviceId …" case end to end.
+
 ### Changed
+- README, command reference and recipes are SEO-refreshed around multi-account support: keyword-aware intro and footer, a multi-account badge, a comparison-table row, a FAQ entry, and updated `brand.json` / `llms.txt` / GitHub topics + description.
+- Replaced four stale captured tables that still showed the pre-`CLAUDE ACCOUNT` column layout (README "Why browserctrl?", the ambiguous-`find` block in the command reference, and both tables in recipes), plus the column list in the agent skill.
 ### Deprecated
 ### Removed
 ### Fixed

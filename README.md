@@ -1,6 +1,6 @@
 <h1 align="center">browserctrl</h1>
 <p align="center"><strong>CLI + Go library — which browser is that device id? Answered from disk, in one command.</strong></p>
-<p align="center">Maps Claude-in-Chrome device ids to the Chromium browser, profile and signed-in email behind them, shows which profiles are open right now, and resolves a nickname to an id.</p>
+<p align="center">Maps Claude-in-Chrome device ids to the Chromium browser, profile, signed-in email and <strong>Claude account</strong> behind them, shows which profiles are open right now, and resolves a nickname to an id.</p>
 
 <p align="center">
   <a href="https://pkg.go.dev/github.com/khanakia/browserctrl"><img src="https://pkg.go.dev/badge/github.com/khanakia/browserctrl.svg" alt="Go Reference on pkg.go.dev"></a>
@@ -10,10 +10,11 @@
   <img src="https://img.shields.io/badge/go-1.26%2B-00ADD8" alt="Go 1.26 or later">
   <img src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-555" alt="Runs on macOS, Linux and Windows (macOS verified live)">
   <img src="https://img.shields.io/badge/read--only-no%20network%2C%20no%20browser%20flags-2ea44f" alt="Read-only: no network, no browser flags">
+  <img src="https://img.shields.io/badge/multi--account-multiple%20Claude%20logins-2ea44f" alt="Supports multiple Claude accounts: shows which Claude account each browser profile is signed into">
   <img src="https://img.shields.io/badge/coverage-97.3%25%20lib%20%C2%B7%2098.1%25%20cli%20%C2%B7%2096.7%25%20merged-2ea44f" alt="Statement coverage: 97.3% browser package, 98.1% CLI, 96.7% merged across every package">
 </p>
 
-`browserctrl` is an open-source, local-first browser identity resolver for AI coding agents: it tells you which Chromium browser profile is behind each Claude-in-Chrome **device id** — running or not — so Claude Code's `claude-in-chrome` MCP can `select_browser` the right window first time instead of prompting in every browser. It reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only, needs no `--remote-debugging-port`, sends nothing anywhere, and ships as a CLI (`browserctrl`) plus an importable Go package (`github.com/khanakia/browserctrl/browser`) with a fixture package for tests.
+`browserctrl` is an open-source, local-first browser identity resolver for AI coding agents: it tells you which Chromium browser profile is behind each Claude-in-Chrome **device id** — running or not, and **which Claude account it is signed in to** when you use more than one — so Claude Code's `claude-in-chrome` MCP can `select_browser` the right window first time instead of prompting in every browser. It reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only, needs no `--remote-debugging-port`, sends nothing anywhere, and ships as a CLI (`browserctrl`) plus an importable Go package (`github.com/khanakia/browserctrl/browser`) with a fixture package for tests.
 
 > [!IMPORTANT]
 > **Requires the Claude in Chrome extension, installed in each profile you want to see.** The device id is created by that extension on its first run in a profile and is stored only there — it is not a Chrome identifier, and Chrome scopes extensions **per profile**. A profile without the extension has no id, is invisible to `list_connected_browsers` and `select_browser`, and is therefore not listed by `browserctrl list`, open or not. Installing the extension in `Default` does nothing for `Profile 26`. Run `browserctrl list --profiles` to see which of your profiles are missing it.
@@ -33,7 +34,7 @@ import "github.com/khanakia/browserctrl/browser"
 | 🖥️ **`browserctrl` CLI** | see every profile with the Claude extension, which are open right now, and get the id for "my work chrome" without clicking through prompts | [Usage](#usage) → [command reference](docs/commands.md) → [recipes](docs/recipes.md) |
 | 📦 **Go library** | scan Chromium user-data roots from your own tool, match entries, build test fixtures | [Library use](#library-use) → [Go API](docs/go-api.md) |
 
-**Contents:** [Why browserctrl?](#why-browserctrl) · [Install](#install) · [Usage](#usage) · [Using it from Claude Code](#using-it-from-claude-code) · [Agent skill](#agent-skill) · [How it works](#how-it-works) · [Library use](#library-use) · [Testing](#testing) · [Development](#development) · [Docs](#docs) · [FAQ](#faq)
+**Contents:** [Why browserctrl?](#why-browserctrl) · [Install](#install) · [Usage](#usage) · [Examples](#examples) · [Multiple Claude accounts](#multiple-claude-accounts) · [Using it from Claude Code](#using-it-from-claude-code) · [Agent skill](#agent-skill) · [How it works](#how-it-works) · [Library use](#library-use) · [Testing](#testing) · [Development](#development) · [Docs](#docs) · [FAQ](#faq)
 
 ## Why browserctrl?
 
@@ -51,11 +52,11 @@ The names are not stable between listings, so the only way to pick the right win
 
 ```
 $ browserctrl list
-STATE    MCP  DEVICE ID                             BROWSER  PROFILE     NAME     EMAIL              DISPLAY NAME
-running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman     aman@example.com   chrome-main
-running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work     aman@work.example  work-chrome
-idle     yes  f836694e-b2f0-4e5b-93e4-ff946c6183ad  custom   Profile 23  legable  aman@legable.co    aman-legable
-idle     no   -                                     custom   Profile 4   Fresh    fresh@example.com  -
+STATE    MCP  DEVICE ID                             BROWSER  PROFILE     NAME     EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman     aman@example.com   chrome-main   other account 1
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work     aman@work.example  work-chrome   other account 1
+idle     yes  f836694e-b2f0-4e5b-93e4-ff946c6183ad  custom   Profile 23  legable  aman@legable.co    aman-legable  other account 2
+idle     no   -                                     custom   Profile 4   Fresh    fresh@example.com  -             -
 
 $ browserctrl find legable
 f836694e-b2f0-4e5b-93e4-ff946c6183ad
@@ -70,6 +71,7 @@ How the jobs compare with the other ways of answering "which browser is that id?
 | Map a device id to browser + profile + email | ✅ one command, from disk | ❌ click in each window | ⚠️ open every profile, read it off | ❌ extension storage is not exposed |
 | Tell which profiles are open right now | ✅ `STATE` column, via the LevelDB lock | ⚠️ connected ones only, unstable labels | ❌ | ⚠️ only with `--remote-debugging-port` |
 | Include profiles whose browser is closed | ✅ `idle` rows | ❌ | ❌ | ❌ |
+| Say which **Claude account** each browser is signed in to | ✅ `CLAUDE ACCOUNT` column | ❌ silently omits other accounts | ⚠️ sign in to each and look | ❌ |
 | Scriptable (`--json`, exit codes, nickname → id) | ✅ | ❌ tool call + human click | ❌ | ✅ |
 | Works without relaunching the browser with flags | ✅ read-only, no flags | ✅ | ✅ | ❌ |
 | Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium in one list | ✅ | ✅ whatever is connected | ⚠️ one at a time | ⚠️ per instance |
@@ -104,6 +106,88 @@ Releases are cut by [volt](https://github.com/khanakia/voltkit): every `vX.Y.Z` 
 - `browserctrl --version`, `browserctrl completion <shell>`.
 
 Every flag, with real output for every verb, is in the [command reference](docs/commands.md); end-to-end workflows are in [recipes](docs/recipes.md).
+
+## Examples
+
+Every block below is real captured output from the repo's doc fixture (`task docs:capture`), which is why the browser column reads `custom`; on your machine it says `chrome`, `vivaldi`, `edge` and so on.
+
+**Every browser, with its Claude account.** The account Claude Code is signed in as shows as its email; any other shows as `other account`.
+
+```
+$ browserctrl list
+STATE    MCP  DEVICE ID                             BROWSER  PROFILE     NAME     EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman     aman@example.com   chrome-main   other account 1
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work     aman@work.example  work-chrome   other account 1
+idle     yes  f836694e-b2f0-4e5b-93e4-ff946c6183ad  custom   Profile 23  legable  aman@legable.co    aman-legable  other account 2
+idle     no   -                                     custom   Profile 4   Fresh    fresh@example.com  -             -
+```
+
+**Only what an agent can attach to right now**, which is what `select_browser` needs:
+
+```
+$ browserctrl list --running
+STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   other account 1
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   other account 1
+```
+
+**A nickname to one id**, for piping straight into a tool call:
+
+```
+$ browserctrl find legable
+f836694e-b2f0-4e5b-93e4-ff946c6183ad
+```
+
+**An ambiguous query fails loudly** — candidates on stderr, stdout empty, exit `2`, so `$(…)` captures nothing rather than garbage:
+
+```
+$ browserctrl find chrome
+error: query matches more than one browser
+STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   other account 1
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   other account 1
+```
+
+**Why a profile you use every day is missing:** it has no Claude extension, so it has no device id and no session can reach it.
+
+```
+$ browserctrl list --profiles
+STATE    EXTENSION      MCP  DEVICE ID                             BROWSER  PROFILE     NAME      EMAIL                 DISPLAY NAME  CLAUDE ACCOUNT
+running  installed      yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman      aman@example.com      chrome-main   other account 1
+running  not installed  no   -                                     custom   Profile 26  Personal  personal@example.com  -             -
+running  installed      yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work      aman@work.example     work-chrome   other account 1
+idle     installed      yes  f836694e-b2f0-4e5b-93e4-ff946c6183ad  custom   Profile 23  legable   aman@legable.co       aman-legable  other account 2
+idle     installed      no   -                                     custom   Profile 4   Fresh     fresh@example.com     -             -
+```
+
+**Machine-readable, for scripts and agents:**
+
+```sh
+browserctrl list --json | jq -r '.[] | "\(.deviceId)\t\(.profileName)\t\(.accountUuid)"'
+browserctrl list --json | jq -r 'group_by(.accountUuid)[] | "\(.[0].accountUuid // "signed out"): \(map(.profileName) | join(", "))"'
+browserctrl find work --running --json | jq -r .deviceId
+```
+
+## Multiple Claude accounts
+
+If you are signed in to more than one Claude account, this is the failure it prevents: `select_browser` answers **"No connected browser has deviceId …"** for an id that `browserctrl list` shows as `running`, because `list_connected_browsers` only reports browsers signed in to the *same Claude account* as the session asking. A browser on another account is unreachable from that session no matter how open it is.
+
+The `CLAUDE ACCOUNT` column makes that visible:
+
+| Cell | Meaning |
+|---|---|
+| an email address | the account Claude Code is signed in as — this session can reach these browsers |
+| `other account` (numbered when there are several) | a different Claude login; this session cannot reach it, whatever `STATE` says |
+| a label you chose | an account you named with `--account-alias <uuid>=<label>` |
+| `-` | the extension is installed but signed out, or not installed at all |
+
+Only one account can be named automatically, and not for want of trying: Claude stores no email in the browser — only an account uuid. That was checked against the extension's own storage, claude.ai's site data inside the profile, Claude Code's config and every backup of it, and past session transcripts. The single place a uuid is paired with an email is Claude Code's config for the account it is signed in as. To name the others, take their `accountUuid` from `--json` and say so once:
+
+```sh
+browserctrl list --account-alias 2f7c1b90-...=work@example.com --account-alias 8ad41c02-...=personal@example.com
+```
+
+Labels are computed over the whole scan, so `--running` and `--profiles` never rename an account between two commands.
 
 ## Using it from Claude Code
 
@@ -195,6 +279,8 @@ Releases: `task volt:release:snapshot` builds every platform into `dist/` and pu
 
 ## FAQ
 
+**Does browserctrl support multiple Claude accounts?** Yes — that is what the `CLAUDE ACCOUNT` column is for. Each profile's extension stores the Claude account it is signed in to, so you can see at a glance which browsers the session in front of you can actually reach: the MCP only ever sees browsers on its own account. The account Claude Code is signed in as is shown by email; others show as `other account`, because Claude stores no email for them anywhere on disk, and can be named with `--account-alias`. See [Multiple Claude accounts](#multiple-claude-accounts).
+
 **Does browserctrl send anything to the cloud or need an API key?** No. It reads files under your browsers' user-data directories and prints what it finds. There is no network code in the binary, no account, no telemetry. The only third-party dependency is a LevelDB reader.
 
 **Does it modify my Chrome profile, or lock it?** No. Each extension store is copied to a temp directory, opened read-only from the copy, and the copy is deleted before exit. The running/idle probe takes a *shared* non-blocking `flock` on the `LOCK` file and releases it immediately; it cannot block the browser or another scan.
@@ -215,4 +301,4 @@ Releases: `task volt:release:snapshot` builds every platform into `dist/` and pu
 
 **Can I use it from Go, and test without a browser?** Yes. `browser.Scan`, `browser.Match` and `browser.OnlyRunning` are the whole surface the CLI uses, and `browser/browsertest` writes fake user-data roots with real LevelDB stores so your tests need no browser. See the [Go API page](docs/go-api.md).
 
-<sub>browserctrl — open-source, local-first CLI and Go library that resolves Claude-in-Chrome / Claude Code MCP device ids to Chromium browser profiles (Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium) by reading extension LevelDB storage and `Local State` read-only. No cloud, no API key, no browser flags. Apache-2.0.</sub>
+<sub>browserctrl — open-source, local-first CLI and Go library that resolves Claude-in-Chrome / Claude Code MCP device ids to Chromium browser profiles (Chrome, Edge, Brave, Vivaldi, Opera, Arc, Chromium) by reading extension LevelDB storage and `Local State` read-only. Supports multiple Claude accounts: shows which Claude account each browser profile is signed in to, so you can tell an unreachable browser from an unconnected one. No cloud, no API key, no browser flags. Apache-2.0.</sub>
