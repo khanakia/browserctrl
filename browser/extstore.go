@@ -25,6 +25,22 @@ type ExtensionRecord struct {
 	// McpConnected is `mcpConnected` — true once the extension has completed
 	// an MCP handshake at some point (sticky; see storageKeyMcpConnected).
 	McpConnected bool `json:"mcpConnected"`
+	// AccountUUID is `accountUuid` — the Claude account signed in to this
+	// profile's extension. Empty when the extension has never been signed in.
+	// The account is NOT derivable from the profile's Google/Microsoft email:
+	// on a real machine a profile signed in to Chrome as one person was signed
+	// in to Claude as another (2026-09-25).
+	AccountUUID string `json:"accountUuid"`
+	// OrgUUID is the `uuid` inside the `tokenOrg` object — the organization
+	// the current token belongs to. Empty when signed out.
+	OrgUUID string `json:"orgUuid"`
+}
+
+// tokenOrg is the shape of storageKeyTokenOrg. Only uuid is read; hybrid is
+// declared so the decode fails loudly if the shape ever changes.
+type tokenOrg struct {
+	Hybrid bool   `json:"hybrid"`
+	UUID   string `json:"uuid"`
 }
 
 // ErrNoExtensionStore is returned when the extension's LevelDB directory does
@@ -78,6 +94,14 @@ func ReadExtensionStore(ctx context.Context, dir string) (rec ExtensionRecord, e
 	if rec.McpConnected, err = getJSONBool(db, storageKeyMcpConnected); err != nil {
 		return rec, err
 	}
+	if rec.AccountUUID, err = getJSONString(db, storageKeyAccountUUID); err != nil {
+		return rec, err
+	}
+	org, err := getJSONValue[tokenOrg](db, storageKeyTokenOrg)
+	if err != nil {
+		return rec, err
+	}
+	rec.OrgUUID = org.UUID
 	return rec, nil
 }
 
@@ -98,6 +122,25 @@ func getJSONString(db *leveldb.DB, key string) (string, error) {
 		return "", fmt.Errorf("decode %s (%q): %w", key, raw, err)
 	}
 	return s, nil
+}
+
+// getJSONValue is getJSONString for a structured value. Generic rather than
+// an `any` out-parameter so the call site keeps its static type and no value
+// is ever boxed. Missing key → the zero T with a nil error, which is the
+// documented fallback for a profile that has never been signed in.
+func getJSONValue[T any](db *leveldb.DB, key string) (T, error) {
+	var out T
+	raw, err := db.Get([]byte(key), nil)
+	if errors.Is(err, leveldb.ErrNotFound) {
+		return out, nil
+	}
+	if err != nil {
+		return out, fmt.Errorf("get %s: %w", key, err)
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return out, fmt.Errorf("decode %s (%q): %w", key, raw, err)
+	}
+	return out, nil
 }
 
 // getJSONBool is getJSONString for a JSON boolean; missing key → false.

@@ -46,6 +46,9 @@ const (
 	// flagProfiles is on `list` only: `find` resolves a device id, and a
 	// profile without an extension has none to resolve.
 	flagProfiles = "profiles"
+	// flagAccountAlias names a Claude account uuid that this machine cannot
+	// name by itself (see accountAliases).
+	flagAccountAlias = "account-alias"
 )
 
 // version is the binary's release version, used by the generated
@@ -91,6 +94,117 @@ type listFlags struct {
 	// profiles widens the listing to profiles with no Claude extension, which
 	// are otherwise invisible — the "why is my profile missing?" answer.
 	profiles bool
+	// aliases are `<uuid>=<label>` pairs naming Claude accounts, in the order
+	// given; see accountAliases for why they are needed.
+	aliases []string
+}
+
+// accountAliases parses `--account-alias <uuid>=<label>` into uuid → label.
+//
+// Why the flag exists: only ONE Claude account can be named from disk — the
+// one Claude Code is signed in as (browser.ReadClaudeAccount). Every other
+// account exists on this machine as a bare uuid, in the extension store, in
+// claude.ai's site data and in past transcripts, with its email stored
+// nowhere (verified 2026-09-25). So naming a second account is something only
+// the user can supply, once, from their shell profile or a wrapper.
+//
+// A pair without "=" is an error rather than a silently ignored argument: a
+// typo here would otherwise show up as an unexplained uuid in the table.
+func accountAliases(pairs []string) (map[string]string, error) {
+	out := make(map[string]string, len(pairs))
+	for _, p := range pairs {
+		uuid, label, ok := strings.Cut(p, aliasSeparator)
+		if !ok || uuid == "" || label == "" {
+			return nil, fmt.Errorf("--%s %q: want <account-uuid>%s<label>", flagAccountAlias, p, aliasSeparator)
+		}
+		out[uuid] = label
+	}
+	return out, nil
+}
+
+// aliasSeparator splits an --account-alias pair. labelOtherAccount is what an
+// account that cannot be named is called: it is not this session's account,
+// which is the only fact that changes what the reader should do.
+const (
+	aliasSeparator    = "="
+	labelOtherAccount = "other account"
+)
+
+// newAccountLabeler builds the column's formatter.
+//
+// Why not just print the uuid: a Claude account uuid tells the reader
+// nothing, and the account's EMAIL cannot be recovered for any account but
+// the signed-in one — Claude stores no email in the browser at all (checked
+// 2026-09-25 against the extension store, claude.ai's own site data,
+// Claude Code's config and its backups, and past transcripts). So the column
+// answers the question the uuid was standing in for: can THIS session reach
+// that browser? Preference order: the signed-in account's email, a label the
+// user gave, otherwise "other account" — numbered only when there are
+// several, so the common two-account case reads as plain English.
+//
+// entries is the set about to be rendered; numbering follows their order so
+// the same listing always labels the same account the same way.
+func newAccountLabeler(session browser.ClaudeAccount, aliases map[string]string, entries []browser.Entry) accountLabeler {
+	others := otherAccountNumbers(session.UUID, aliases, entries)
+	return func(e browser.Entry) string {
+		switch {
+		case e.AccountUUID == "":
+			return ""
+		case session.UUID != "" && e.AccountUUID == session.UUID && session.Email != "":
+			return session.Email
+		}
+		if label, ok := aliases[e.AccountUUID]; ok {
+			return label
+		}
+		if n, ok := others[e.AccountUUID]; ok && n > 0 {
+			return fmt.Sprintf("%s %d", labelOtherAccount, n)
+		}
+		return labelOtherAccount
+	}
+}
+
+// otherAccountNumbers assigns 1..N to the accounts that are neither the
+// signed-in one nor aliased, in the order they appear. A single such account
+// maps to 0, meaning "do not number it": "other account" beats "other
+// account 1" when there is nothing to tell it apart from.
+func otherAccountNumbers(sessionUUID string, aliases map[string]string, entries []browser.Entry) map[string]int {
+	order := make([]string, 0, len(entries))
+	seen := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		if e.AccountUUID == "" || e.AccountUUID == sessionUUID || seen[e.AccountUUID] {
+			continue
+		}
+		if _, aliased := aliases[e.AccountUUID]; aliased {
+			continue
+		}
+		seen[e.AccountUUID] = true
+		order = append(order, e.AccountUUID)
+	}
+	out := make(map[string]int, len(order))
+	for i, u := range order {
+		if len(order) == 1 {
+			out[u] = 0
+			break
+		}
+		out[u] = i + 1
+	}
+	return out
+}
+
+// sessionAccount reads the account Claude Code is signed in as. Any failure
+// degrades to the zero account: the listing still works, accounts just show
+// as uuids. That is the whole point of the fallback — a browser inventory
+// must not fail because Claude Code is missing or logged out.
+func sessionAccount() browser.ClaudeAccount {
+	path, err := browser.DefaultClaudeConfigPath()
+	if err != nil {
+		return browser.ClaudeAccount{}
+	}
+	acct, err := browser.ReadClaudeAccount(path)
+	if err != nil {
+		return browser.ClaudeAccount{}
+	}
+	return acct
 }
 
 func main() {
@@ -181,24 +295,31 @@ installed has no id, cannot be selected by the MCP, and is not listed unless
 you pass --profiles.`,
 		Example: `  browserctrl list
   browserctrl list --running --json
-  browserctrl list --profiles`,
+  browserctrl list --profiles
+  browserctrl list --account-alias 2f7c1b90-...=work@example.com`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			entries, err := scan(cmd.Context(), f)
+			entries, all, err := scan(cmd.Context(), f)
 			if err != nil {
 				return err
 			}
 			if f.json {
 				return writeJSON(cmd.OutOrStdout(), entries)
 			}
-			if f.profiles {
-				return writeProfilesTable(cmd.OutOrStdout(), entries)
+			aliases, err := accountAliases(f.aliases)
+			if err != nil {
+				return err
 			}
-			return writeTable(cmd.OutOrStdout(), entries)
+			label := newAccountLabeler(sessionAccount(), aliases, all)
+			if f.profiles {
+				return writeProfilesTable(cmd.OutOrStdout(), entries, label)
+			}
+			return writeTable(cmd.OutOrStdout(), entries, label)
 		},
 	}
 	addListFlags(cmd, &f)
 	cmd.Flags().BoolVar(&f.profiles, flagProfiles, false, "also list profiles that do NOT have the Claude extension installed")
+	cmd.Flags().StringArrayVar(&f.aliases, flagAccountAlias, nil, "name a Claude account: <account-uuid>=<label> (repeatable)")
 	return cmd
 }
 
@@ -216,7 +337,7 @@ candidates are listed on stderr and the exit code is 2.`,
   DEVICE=$(browserctrl find analyzify)`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			entries, err := scan(cmd.Context(), f)
+			entries, all, err := scan(cmd.Context(), f)
 			if err != nil {
 				return err
 			}
@@ -227,7 +348,7 @@ candidates are listed on stderr and the exit code is 2.`,
 					// Best-effort diagnostics on stderr; the ambiguity error is
 					// the result, so a failure to print candidates is not promoted.
 					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "error:", err)
-					_ = writeTable(cmd.ErrOrStderr(), matches)
+					_ = writeTable(cmd.ErrOrStderr(), matches, newAccountLabeler(sessionAccount(), nil, all))
 				}
 				return err
 			}
@@ -244,7 +365,12 @@ candidates are listed on stderr and the exit code is 2.`,
 
 // scan runs browser.Scan with the flag-derived options and applies the
 // --running filter. --all widens the extension set to every known id.
-func scan(ctx context.Context, f listFlags) ([]browser.Entry, error) {
+//
+// It returns the filtered entries AND the unfiltered scan. The second value
+// is what account labels are computed from: numbering accounts over the rows
+// being printed would let `--running` rename an account between two commands
+// on the same machine, which is worse than no label at all.
+func scan(ctx context.Context, f listFlags) (entries, all []browser.Entry, err error) {
 	opts := browser.Options{Extensions: []browser.ExtensionID{browser.ExtClaudeCode}}
 	if f.all {
 		opts.Extensions = browser.ExtensionValues
@@ -253,14 +379,15 @@ func scan(ctx context.Context, f listFlags) ([]browser.Entry, error) {
 	for _, r := range f.roots {
 		opts.Roots = append(opts.Roots, browser.Root{Kind: browser.KindCustom, Path: r})
 	}
-	entries, err := browser.Scan(ctx, opts)
+	all, err = browser.Scan(ctx, opts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	entries = all
 	if f.running {
-		entries = browser.OnlyRunning(entries)
+		entries = browser.OnlyRunning(all)
 	}
-	return entries, nil
+	return entries, all, nil
 }
 
 // pickOne resolves a match set to exactly one entry.

@@ -10,7 +10,12 @@ import (
 
 // Table column headers, in display order. Kept as one slice so the header
 // row and the data rows cannot drift apart.
-var tableHeader = []string{"STATE", "MCP", "DEVICE ID", "BROWSER", "PROFILE", "NAME", "EMAIL", "DISPLAY NAME"}
+var tableHeader = []string{"STATE", "MCP", "DEVICE ID", "BROWSER", "PROFILE", "NAME", "EMAIL", "DISPLAY NAME", columnAccount}
+
+// columnAccount holds the Claude account the extension is signed in as — the
+// column that answers "why can this session not see that browser?", since the
+// MCP only reports browsers on its own account.
+const columnAccount = "CLAUDE ACCOUNT"
 
 // profilesTableHeader is tableHeader plus the EXTENSION column, used by
 // `list --profiles` where rows without the extension are included and the
@@ -43,18 +48,24 @@ const (
 	tablePadChar  = ' '
 )
 
+// accountLabeler turns an entry's Claude account uuid into something a human
+// can read. Injected rather than computed here because the mapping comes from
+// outside the scan (Claude Code's config, plus user-given aliases) and the
+// renderer must stay a pure formatter.
+type accountLabeler func(browser.Entry) string
+
 // writeTable renders entries as an aligned text table. An empty slice prints
 // only a hint line — an empty table with just a header reads like a bug.
-func writeTable(w io.Writer, entries []browser.Entry) error {
-	return renderTable(w, entries, false)
+func writeTable(w io.Writer, entries []browser.Entry, label accountLabeler) error {
+	return renderTable(w, entries, false, label)
 }
 
 // writeProfilesTable is writeTable for `list --profiles`: same rows plus the
 // EXTENSION column, and an empty-slice hint that talks about profiles rather
 // than extension stores (in this mode "nothing found" means no profile at
 // all, which is a different problem).
-func writeProfilesTable(w io.Writer, entries []browser.Entry) error {
-	return renderTable(w, entries, true)
+func writeProfilesTable(w io.Writer, entries []browser.Entry, label accountLabeler) error {
+	return renderTable(w, entries, true, label)
 }
 
 // emptyHint lines, one per mode — see writeTable / writeProfilesTable.
@@ -66,7 +77,7 @@ const (
 // renderTable is the shared body. showExtension adds the EXTENSION column;
 // the header and the row builder read from the same switch so they cannot
 // drift apart.
-func renderTable(w io.Writer, entries []browser.Entry, showExtension bool) error {
+func renderTable(w io.Writer, entries []browser.Entry, showExtension bool, label accountLabeler) error {
 	header, hint := tableHeader, emptyHintStores
 	if showExtension {
 		header, hint = profilesTableHeader, emptyHintProfiles
@@ -92,6 +103,7 @@ func renderTable(w io.Writer, entries []browser.Entry, showExtension bool) error
 			orPlaceholder(e.ProfileName),
 			orPlaceholder(e.Email),
 			orPlaceholder(e.DisplayName),
+			orPlaceholder(label(e)),
 		)
 		if e.Error != "" {
 			// Surface the per-entry read failure inline rather than hiding it.

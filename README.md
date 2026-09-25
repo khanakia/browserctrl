@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/go-1.26%2B-00ADD8" alt="Go 1.26 or later">
   <img src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-555" alt="Runs on macOS, Linux and Windows (macOS verified live)">
   <img src="https://img.shields.io/badge/read--only-no%20network%2C%20no%20browser%20flags-2ea44f" alt="Read-only: no network, no browser flags">
-  <img src="https://img.shields.io/badge/coverage-97.3%25%20lib%20%C2%B7%2097.7%25%20cli%20%C2%B7%2096.4%25%20merged-2ea44f" alt="Statement coverage: 97.3% browser package, 97.7% CLI, 96.4% merged across every package">
+  <img src="https://img.shields.io/badge/coverage-97.3%25%20lib%20%C2%B7%2098.1%25%20cli%20%C2%B7%2096.7%25%20merged-2ea44f" alt="Statement coverage: 97.3% browser package, 98.1% CLI, 96.7% merged across every package">
 </p>
 
 `browserctrl` is an open-source, local-first browser identity resolver for AI coding agents: it tells you which Chromium browser profile is behind each Claude-in-Chrome **device id** — running or not — so Claude Code's `claude-in-chrome` MCP can `select_browser` the right window first time instead of prompting in every browser. It reads Chrome, Edge, Brave, Vivaldi, Opera, Arc and Chromium profile stores read-only, needs no `--remote-debugging-port`, sends nothing anywhere, and ships as a CLI (`browserctrl`) plus an importable Go package (`github.com/khanakia/browserctrl/browser`) with a fixture package for tests.
@@ -97,6 +97,7 @@ Releases are cut by [volt](https://github.com/khanakia/voltkit): every `vX.Y.Z` 
 ## Usage
 
 - `browserctrl list` — every profile with the extension, running ones first. `--json` for machine output, `--running` to keep only open profiles, `--all` to also scan the Claude desktop-app extension ids, `--root <dir>` (repeatable) to scan a custom `--user-data-dir` instead of the well-known install locations.
+- `browserctrl list` also prints a `CLAUDE ACCOUNT` column: which Claude account each browser is signed in to, which is what decides whether a session can reach it at all. The account Claude Code is signed in as shows as its **email**; any other shows as `other account` (numbered when there are several), because Claude stores no email for them anywhere on disk — name those yourself with `--account-alias <uuid>=<label>` if you want.
 - `browserctrl list --profiles` — the same listing plus the profiles that do **not** have the extension, each flagged `not installed` in an `EXTENSION` column. Those profiles have no device id and are invisible to Claude Code entirely, so `list` omits them by default; this is how you find out a profile is missing rather than merely idle.
 - `browserctrl find <term>...` — prints exactly one device id. Every term must match (case-insensitive substring) one of display name, profile name, email, profile dir, browser kind, device id. If several match but exactly one is running, that one wins. Exit 1 = no match, exit 2 = ambiguous (candidates on stderr).
 - `browserctrl skills` — list, print and freshness-check the agent skill this binary ships (`list`, `get`, `path`, `check`, `version`, `refresh`).
@@ -162,16 +163,17 @@ Full surface, with the contracts each function keeps, is in the [Go API page](do
 |---|---|
 | `browser` (library) | 97.3% |
 | `browser/browsertest` (fixtures) | 86.0% |
-| root `main` package (CLI) | 97.7% |
-| `internal/docfixture` (doc harness) | 97.9% |
-| **merged, every package** | **96.4% (399/414 statements)** |
+| root `main` package (CLI) | 98.1% |
+| `internal/docfixture` (doc harness) | 98.0% |
+| **merged, every package** | **96.7% (464/480 statements)** |
 
 Re-measure with `task cover`; `task test:uncovered` lists what is left per function. The numbers above are the measured ones, not rounded claims. The suite needs no browser: every scenario runs against fake user-data roots built by `browser/browsertest`, "running" is simulated by holding the same `flock` Chromium holds, and `go test -race` with parallel subtests is what caught the exclusive-lock probe bug.
 
-The uncovered remainder is **15 statements**, each named rather than hand-waved:
+The uncovered remainder is **16 statements**, each named rather than hand-waved:
 
 - **Two `os.Exit` wrappers** — `main()` in the root package and in `internal/docfixture`. Both delegate to a `run()` that is tested end to end; the wrapper itself cannot run inside `go test`.
 - **Five deferred-`Close` / cleanup error arms** — `db.Close`, `in.Close`, `out.Close` and `os.RemoveAll` in the store reader, plus `db.Close` in the fixture builder. They surface a flush or unlink failure instead of dropping it; provoking one needs fault injection below `os`, which the suite deliberately does not do.
+- **One `db.Get` failure arm** in the structured-value decoder: a read error from an already-opened snapshot, which needs the same fault injection.
 - **Two tabwriter row-write arms** in the table renderer. `text/tabwriter` buffers any line containing a tab until `Flush`, so a broken stdout is reported by `Flush` (covered), never by the per-row write.
 - **One `flock` default arm** in the running probe: an error other than `EWOULDBLOCK`, e.g. a filesystem that does not support `flock`. It maps to `unknown`, never to `idle`.
 - **Five fixture-builder defensive arms**: `json.Marshal` of a `map[string]string` (cannot fail), `db.Put` on a freshly opened LevelDB (no error source without disk faults), the two arms that re-create `LOCK` when LevelDB did not (it always does; they guard a future implementation change), and the failure arm of creating each profile's localStorage LevelDB.
@@ -199,7 +201,9 @@ Releases: `task volt:release:snapshot` builds every platform into `dist/` and pu
 
 **Why does Claude Code show "Browser 1 / 2 / 3", and how does this fix it?** The `claude-in-chrome` MCP only knows each connected extension's device id and assigns display labels per listing, so they shift. The id is not a Chrome identifier at all: the Claude extension mints it on its first run in a profile and keeps it in that profile's own extension storage, which is why it exists per profile and only where the extension is installed. `browserctrl` joins the same device id (`bridgeDeviceId` in the extension's storage) with the profile's name and email from Chromium's `Local State`, so the agent can pick by "my work chrome" and call `select_browser` directly instead of `switch_browser`'s click-in-every-window prompt.
 
-**Does it work when the browser is closed?** Yes. Idle profiles are listed with their ids too (`STATE idle`), which is how you see everything the extension is installed in. Only a `running` profile can actually be selected by the MCP, so pass `--running` when the id is going straight into `select_browser`.
+**Does it work when the browser is closed?** Yes. Idle profiles are listed with their ids too (`STATE idle`), which is how you see everything the extension is installed in. A `running` profile is the only kind the MCP can select, but running is not sufficient — see the next answer — so pass `--running` when the id is going straight into `select_browser` and expect the occasional retry.
+
+**`select_browser` says "No connected browser has deviceId …" but browserctrl says it is running.** Both are right: they measure different things. `running` means the browser process holds that profile's extension lock — a fact on disk. Being *connected* is a live bridge between the extension and your session, and nothing on disk records it (the store has no `connectedAt`; `mcpConnected` is the sticky "handshaked at some point" flag). Two things cause the gap. **The bridge is not up yet** — it connects on demand, so the first call after a quiet period can miss and a retry succeeds. **Or the browser is signed in to a different Claude account**, which is permanent until you change it: `list_connected_browsers` only reports browsers on the session's own account, so that id will never resolve for that session. The `CLAUDE ACCOUNT` column tells the two apart at a glance — your own account by email, anything else as `other account`.
 
 **A profile I use every day is missing from `list` entirely — why?** Because it has no Claude extension store, and the device id lives only in that store. Chrome installs extensions **per profile**, so installing Claude in Chrome in `Default` does nothing for `Profile 26`; a profile without it has no id, cannot be selected, and does not appear in the MCP's own `list_connected_browsers` either — being open changes none of that. Run `browserctrl list --profiles` to see those profiles with an `EXTENSION: not installed` marker (and their real running/idle state), then install the extension in that window and re-run `list`; the row appears as soon as the extension has stored its id. This is different from a row that is listed with an empty `DEVICE ID`: there the extension is installed and simply has not connected yet.
 

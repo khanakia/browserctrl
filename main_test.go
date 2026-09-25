@@ -51,10 +51,23 @@ func TestRun_EndToEnd(t *testing.T) {
 	ext := string(browser.ExtClaudeCode)
 	root := browsertest.Root(t,
 		browsertest.ProfileSpec{Dir: "Default", Name: "Aman", Email: "me@x.io", Stores: map[string]map[string]any{
-			ext: {browsertest.KeyBridgeDeviceID: "id-default", browsertest.KeyBridgeDisplayName: "chrome1", browsertest.KeyMcpConnected: true},
+			ext: {
+				browsertest.KeyBridgeDeviceID:    "id-default",
+				browsertest.KeyBridgeDisplayName: "chrome1",
+				browsertest.KeyMcpConnected:      true,
+				browsertest.KeyAccountUUID:       "acct-session",
+				browsertest.KeyTokenOrg:          map[string]any{"hybrid": false, "uuid": "org-session"},
+			},
 		}},
 		browsertest.ProfileSpec{Dir: "Profile 23", Name: "legable", Email: "a@legable.co", Stores: map[string]map[string]any{
-			ext: {browsertest.KeyBridgeDeviceID: "id-legable"},
+			// Signed in to a DIFFERENT Claude account than Default: the case
+			// that makes a browser unreachable from a session on the other
+			// account, however running it is.
+			ext: {
+				browsertest.KeyBridgeDeviceID: "id-legable",
+				browsertest.KeyAccountUUID:    "acct-other-0000-1111",
+				browsertest.KeyTokenOrg:       map[string]any{"hybrid": false, "uuid": "org-other"},
+			},
 		}},
 		browsertest.ProfileSpec{Dir: "Profile 4", Name: "fresh", Email: "f@x.io", Stores: map[string]map[string]any{
 			ext: {},
@@ -93,6 +106,60 @@ func TestRun_EndToEnd(t *testing.T) {
 		}
 		if len(got) != 3 || got[0].Browser != browser.KindCustom {
 			t.Errorf("got %+v", got)
+		}
+	})
+	t.Run("list prints the Claude account, aliased and shortened", func(t *testing.T) {
+		t.Parallel()
+		code, out, _ := exec("list", "--"+flagAccountAlias, "acct-other-0000-1111=work account")
+		if code != exitOK {
+			t.Fatalf("exit %d", code)
+		}
+		for _, want := range []string{columnAccount, "work account"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("table lacks %q:\n%s", want, out)
+			}
+		}
+		// Unaliased and unresolvable: plain words, and never a raw uuid —
+		// the column exists to say whether this session can reach the
+		// browser, which a hex string does not tell anyone.
+		code, out, _ = exec("list")
+		if code != exitOK || !strings.Contains(out, labelOtherAccount) {
+			t.Errorf("exit %d, no %q in:\n%s", code, labelOtherAccount, out)
+		}
+		if strings.Contains(out, "acct-other-0000-1111") || strings.Contains(out, "acct-session") {
+			t.Errorf("an account uuid leaked into the table:\n%s", out)
+		}
+	})
+	t.Run("list json carries the account and org uuids", func(t *testing.T) {
+		t.Parallel()
+		code, out, _ := exec("list", "--"+flagJSON)
+		if code != exitOK {
+			t.Fatalf("exit %d", code)
+		}
+		var got []browser.Entry
+		if err := json.Unmarshal([]byte(out), &got); err != nil {
+			t.Fatal(err)
+		}
+		byDir := map[string]browser.Entry{}
+		for _, e := range got {
+			byDir[e.ProfileDir] = e
+		}
+		if e := byDir["Default"]; e.AccountUUID != "acct-session" || e.OrgUUID != "org-session" {
+			t.Errorf("Default: got %+v", e)
+		}
+		if e := byDir["Profile 23"]; e.AccountUUID != "acct-other-0000-1111" || e.OrgUUID != "org-other" {
+			t.Errorf("Profile 23: got %+v", e)
+		}
+		// Never signed in: both empty, and that is not an error.
+		if e := byDir["Profile 4"]; e.AccountUUID != "" || e.OrgUUID != "" {
+			t.Errorf("Profile 4: got %+v", e)
+		}
+	})
+	t.Run("a bad account alias fails loudly", func(t *testing.T) {
+		t.Parallel()
+		code, _, errOut := exec("list", "--"+flagAccountAlias, "missing-separator")
+		if code != exitFailure || !strings.Contains(errOut, flagAccountAlias) {
+			t.Errorf("exit %d, stderr %q", code, errOut)
 		}
 	})
 	t.Run("list omits a profile with no extension store", func(t *testing.T) {

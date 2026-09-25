@@ -30,6 +30,7 @@ browserctrl find work --running     # same, restricted to open browsers
 browserctrl list --root <dir>       # scan a --user-data-dir profile (Chrome for Testing, Playwright)
 browserctrl list --all              # include the Claude desktop-app extension ids
 browserctrl list --profiles         # also show profiles with NO extension (why one is missing)
+browserctrl list --json | jq -r '.[] | "\(.deviceId) \(.accountUuid)"'   # which account each browser is on
 ```
 
 Exit codes: `0` ok, `1` failure or no match, `2` ambiguous (candidates printed on stderr, stdout empty). On `2`, add a term — `browserctrl find chrome main` — or fall back to the prompt.
@@ -44,6 +45,8 @@ Exit codes: `0` ok, `1` failure or no match, `2` ambiguous (candidates printed o
 | `browser` | `chrome`, `edge`, `brave`, `vivaldi`, `opera`, `arc`, `chromium`, … or `custom` for `--root` |
 | `profileDir` / `profileName` / `email` | from Chromium's `Local State`; email is the most reliable human key |
 | `displayName` | the name the user typed when connecting the extension; ask the user to name each browser once, then match on it |
+| `accountUuid` | the Claude account this browser is signed in to. `select_browser` can only reach browsers on the SAME account as the session, so compare before blaming the id. In the table this shows as the signed-in account's email, or `other account` — no email exists on disk for any account but the current one |
+| `orgUuid` | the organization of that account's current token |
 | `installed` | always `true` in a normal listing; `false` only for the extra rows `--profiles` adds, meaning that profile has no Claude extension and therefore no id |
 
 ## Worked example
@@ -56,6 +59,10 @@ f836694e-b2f0-4e5b-93e4-ff946c6183ad
 ```
 
 → `select_browser(deviceId: "f836694e-b2f0-4e5b-93e4-ff946c6183ad")`, then proceed. If the exit code is `1`, tell the user that profile is not open (it will appear as `idle` in `browserctrl list`) rather than guessing another window.
+
+## When select_browser rejects a correct id
+
+`No connected browser has deviceId …` on an id that `browserctrl list` shows as `running` is not a contradiction: `running` is a fact on disk (the browser holds the profile's extension lock), while *connected* is a live bridge that nothing on disk records. Check two things before retrying blindly. **Account:** compare that entry's `accountUuid` with the other connected browsers' — the MCP only reports browsers on the session's own account, so a mismatch means that browser is unreachable from this session, permanently, and the user must switch accounts or use another browser. **Timing:** if the account matches, the bridge is simply not up yet; it connects on demand, so call `list_connected_browsers` once more, and if it is still absent tell the user to open that window and click the extension rather than silently selecting a different browser.
 
 ## When the user says a browser is missing
 

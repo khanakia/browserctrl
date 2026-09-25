@@ -40,13 +40,15 @@ const minArgs = 3
 // never churn; names/emails are example-domain placeholders.
 var fixtureProfiles = []browsertest.ProfileSpec{
 	{Dir: "Default", Name: "Aman", Email: "aman@example.com", Stores: map[string]map[string]any{
-		string(browser.ExtClaudeCode): {browsertest.KeyBridgeDeviceID: "ce9a8e06-61d3-4e7b-894b-13fd92987212", browsertest.KeyBridgeDisplayName: "chrome-main", browsertest.KeyMcpConnected: true},
+		string(browser.ExtClaudeCode): store("ce9a8e06-61d3-4e7b-894b-13fd92987212", "chrome-main", fixtureAccountA, fixtureOrgA),
 	}},
 	{Dir: "Profile 5", Name: "Work", Email: "aman@work.example", Stores: map[string]map[string]any{
-		string(browser.ExtClaudeCode): {browsertest.KeyBridgeDeviceID: "2aa533d3-d03f-4dd8-b664-f59b8930eccc", browsertest.KeyBridgeDisplayName: "work-chrome", browsertest.KeyMcpConnected: true},
+		string(browser.ExtClaudeCode): store("2aa533d3-d03f-4dd8-b664-f59b8930eccc", "work-chrome", fixtureAccountA, fixtureOrgA),
 	}},
 	{Dir: "Profile 23", Name: "legable", Email: "aman@legable.co", Stores: map[string]map[string]any{
-		string(browser.ExtClaudeCode): {browsertest.KeyBridgeDeviceID: "f836694e-b2f0-4e5b-93e4-ff946c6183ad", browsertest.KeyBridgeDisplayName: "aman-legable", browsertest.KeyMcpConnected: true},
+		// A SECOND Claude account: the reason a running browser can still be
+		// invisible to a session signed in as the first one.
+		string(browser.ExtClaudeCode): store("f836694e-b2f0-4e5b-93e4-ff946c6183ad", "aman-legable", fixtureAccountB, fixtureOrgB),
 	}},
 	// Extension installed but never connected: no bridge keys at all.
 	{Dir: "Profile 4", Name: "Fresh", Email: "fresh@example.com", Stores: map[string]map[string]any{
@@ -55,6 +57,32 @@ var fixtureProfiles = []browsertest.ProfileSpec{
 	// No extension at all: open right now, yet invisible to `list` and to the
 	// MCP. Only `list --profiles` shows it — the case the docs must explain.
 	{Dir: "Profile 26", Name: "Personal", Email: "personal@example.com"},
+}
+
+// The two Claude accounts the fixture is split across, so the docs can show
+// the column that says which browsers a session can reach.
+//
+// The uuids are deliberately unreal (all-1s / all-2s). A real uuid here would
+// match whatever account the person capturing the docs happens to be signed
+// in as, and their email would be baked into the published output — which it
+// was, once, before this comment existed.
+const (
+	fixtureAccountA = "11111111-1111-4111-8111-111111111111"
+	fixtureOrgA     = "1111aaaa-1111-4111-8111-111111111111"
+	fixtureAccountB = "22222222-2222-4222-8222-222222222222"
+	fixtureOrgB     = "2222bbbb-2222-4222-8222-222222222222"
+)
+
+// store builds one extension store's key/value map, so a fixture row states
+// only what differs between profiles.
+func store(deviceID, displayName, account, org string) map[string]any {
+	return map[string]any{
+		browsertest.KeyBridgeDeviceID:    deviceID,
+		browsertest.KeyBridgeDisplayName: displayName,
+		browsertest.KeyMcpConnected:      true,
+		browsertest.KeyAccountUUID:       account,
+		browsertest.KeyTokenOrg:          map[string]any{"hybrid": false, "uuid": org},
+	}
 }
 
 // runningProfiles are the fixture profiles whose extension-store LOCK this
