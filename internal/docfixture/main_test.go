@@ -102,6 +102,58 @@ func TestRun(t *testing.T) {
 			t.Errorf("exit %d err %q", code, se.String())
 		}
 	})
+	t.Run("the binary runs as the fixture session", func(t *testing.T) {
+		// The captured tables must show a named account without depending on
+		// who runs the capture, so the child gets CLAUDE_CONFIG_DIR pointing
+		// at a config naming fixture account A.
+		t.Parallel()
+		root := filepath.Join(t.TempDir(), "root")
+		bin := filepath.Join(t.TempDir(), "env")
+		script := "#!/bin/sh\necho \"dir=$CLAUDE_CONFIG_DIR\"\ncat \"$CLAUDE_CONFIG_DIR/.claude.json\"\n"
+		if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		var so, se bytes.Buffer
+		if code := run([]string{"docfixture", root, bin}, &so, &se); code != 0 {
+			t.Fatalf("exit %d err %q", code, se.String())
+		}
+		for _, want := range []string{"dir=" + filepath.Join(root, sessionConfigSubdir), fixtureAccountA, sessionEmail} {
+			if !strings.Contains(so.String(), want) {
+				t.Errorf("child output lacks %q: %q", want, so.String())
+			}
+		}
+	})
+	t.Run("session config dir cannot be created", func(t *testing.T) {
+		// A FILE where the config directory should go: MkdirAll fails, and
+		// the harness must stop rather than capture against the real account.
+		t.Parallel()
+		root := filepath.Join(t.TempDir(), "root")
+		if err := browsertest.Build(root, fixtureProfiles...); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, sessionConfigSubdir), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		var so, se bytes.Buffer
+		if code := run([]string{"docfixture", root, fakeBinary(t, 0)}, &so, &se); code != exitFailure || !strings.Contains(se.String(), "session config") {
+			t.Errorf("exit %d err %q", code, se.String())
+		}
+	})
+	t.Run("session config file cannot be written", func(t *testing.T) {
+		// A DIRECTORY where the config file should go: WriteFile fails.
+		t.Parallel()
+		root := filepath.Join(t.TempDir(), "root")
+		if err := browsertest.Build(root, fixtureProfiles...); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(root, sessionConfigSubdir, sessionConfigFile), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		var so, se bytes.Buffer
+		if code := run([]string{"docfixture", root, fakeBinary(t, 0)}, &so, &se); code != exitFailure || !strings.Contains(se.String(), "session config") {
+			t.Errorf("exit %d err %q", code, se.String())
+		}
+	})
 	t.Run("binary missing", func(t *testing.T) {
 		// Pins the non-ExitError arm of cmd.Run (exec failure).
 		t.Parallel()

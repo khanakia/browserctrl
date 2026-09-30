@@ -2,9 +2,11 @@ package browser
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ClaudeAccount names a Claude account uuid.
@@ -15,12 +17,14 @@ import (
 // its own config file, and that is the ONLY place on this machine where a
 // Claude account uuid is paired with a human-readable identity.
 //
-// Invariant: this resolves exactly ONE account, the one Claude Code is signed
-// in as right now. Verified on a machine with two accounts in use
-// (2026-09-25): the second account's uuid appears in the extension stores, in
-// claude.ai's own site data (`__qk_hint_account_uuid`, `ccd-sync-owner`) and
-// in past session transcripts, but no email for it is stored anywhere. Callers
-// that need to name another account must be given the label by the user.
+// Invariant: one config names exactly ONE account — the one that Claude Code
+// profile is signed in as right now. A machine with several profiles
+// (CLAUDE_CONFIG_DIR) therefore names several accounts, one per config; see
+// ClaudeConfigPaths. An account no profile is signed in as cannot be named
+// at all: verified 2026-09-25 that its uuid appears in the extension stores,
+// in claude.ai's own site data (`__qk_hint_account_uuid`, `ccd-sync-owner`)
+// and in past session transcripts, but its email is stored nowhere. Callers
+// that need to name such an account must be given the label by the user.
 type ClaudeAccount struct {
 	// UUID matches Entry.AccountUUID for a profile signed in to this account.
 	UUID string `json:"accountUuid"`
@@ -35,12 +39,21 @@ type ClaudeAccount struct {
 	OrgName string `json:"organizationName"`
 }
 
-// claudeConfigFile is Claude Code's config, and oauthAccountField is the
-// object inside it holding the signed-in account. Both are Claude Code's
-// layout, not ours: read-only, and absent on a machine without Claude Code.
+// claudeConfigFile is Claude Code's config, oauthAccountField is the object
+// inside it holding the signed-in account, and claudeConfigDirEnv is the
+// variable Claude Code honours to relocate its whole config directory. All
+// three are Claude Code's layout, not ours: read-only, and absent on a
+// machine without Claude Code.
 const (
-	claudeConfigFile  = ".claude.json"
-	oauthAccountField = "oauthAccount"
+	claudeConfigFile   = ".claude.json"
+	oauthAccountField  = "oauthAccount"
+	claudeConfigDirEnv = "CLAUDE_CONFIG_DIR"
+	// claudeProfileDirPrefix is what the directories people point
+	// CLAUDE_CONFIG_DIR at start with when they keep several Claude Code
+	// profiles: siblings of the default ~/.claude named ~/.claude-work,
+	// ~/.claude-acme and so on. It is a convention, not a rule — a profile
+	// kept elsewhere is simply not discovered, and its account stays unnamed.
+	claudeProfileDirPrefix = ".claude"
 )
 
 // ErrNoClaudeAccount reports that the config exists but names no account —
@@ -48,17 +61,124 @@ const (
 // error so a caller can degrade to showing uuids instead of failing.
 var ErrNoClaudeAccount = fmt.Errorf("browser: no signed-in Claude account in %s", claudeConfigFile)
 
-// DefaultClaudeConfigPath is ~/.claude.json.
+// DefaultClaudeConfigPath is $CLAUDE_CONFIG_DIR/.claude.json when that
+// variable is set, else ~/.claude.json.
 //
-// Why a function and not a constant: $HOME is resolved at call time, so a
-// caller (or a test) can point somewhere else by passing its own path to
+// Why the variable matters: someone who keeps more than one Claude Code
+// profile on a machine switches between them with CLAUDE_CONFIG_DIR, and each
+// directory holds its OWN signed-in account. Reading ~/.claude.json
+// unconditionally compares browsers against whatever account the default
+// profile last used, which silently mislabels every row as belonging to some
+// other account — observed on a machine running a work profile while the home
+// config still named the personal login (2026-09-30).
+//
+// Why a function and not a constant: the environment is read at call time, so
+// a caller (or a test) can point somewhere else by passing its own path to
 // ReadClaudeAccount instead of the package reaching for $HOME on its own.
 func DefaultClaudeConfigPath() (string, error) {
+	if dir := os.Getenv(claudeConfigDirEnv); dir != "" {
+		return filepath.Join(dir, claudeConfigFile), nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("home dir: %w", err)
 	}
 	return filepath.Join(home, claudeConfigFile), nil
+}
+
+// ClaudeConfigPaths lists every Claude Code config worth reading, most
+// specific first: the one CLAUDE_CONFIG_DIR selects, the default
+// ~/.claude.json, then each sibling profile directory's config. Paths are
+// returned whether or not they exist; ReadClaudeAccounts skips the absent.
+//
+// Why more than one: which account a browser is signed in to is a fact about
+// the browser, not about the shell asking. Resolving only the current
+// process's profile made the answer depend on an environment variable, so
+// the same command named an account inside a Claude Code session and printed
+// "other account" for the very same browser from a plain terminal a moment
+// later (2026-09-30). Every profile on the machine knows one account by
+// name; reading all of them names every account that can be named.
+func ClaudeConfigPaths() ([]string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("home dir: %w", err)
+	}
+	var paths []string
+	if dir := os.Getenv(claudeConfigDirEnv); dir != "" {
+		paths = append(paths, filepath.Join(dir, claudeConfigFile))
+	}
+	paths = append(paths, filepath.Join(home, claudeConfigFile))
+	// A directory listing rather than filepath.Glob: the pattern would embed
+	// $HOME, and a home path containing a glob metacharacter ("[") is a
+	// malformed pattern. An unreadable home just means no sibling profiles
+	// are discovered — the two explicit candidates above still stand.
+	entries, err := os.ReadDir(home)
+	if err != nil {
+		return dedupe(paths), nil
+	}
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), claudeProfileDirPrefix) {
+			continue
+		}
+		dir := filepath.Join(home, e.Name())
+		// The prefix also matches FILES — ~/.claude.json itself, its backups
+		// — and a config "inside" a file is a path that can only ever fail
+		// with ENOTDIR, surfacing as a bogus read error. os.Stat rather than
+		// the entry's own type so a SYMLINKED profile directory counts.
+		if st, statErr := os.Stat(dir); statErr != nil || !st.IsDir() {
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, claudeConfigFile))
+	}
+	return dedupe(paths), nil
+}
+
+// dedupe keeps the first occurrence of each path, preserving order, so a
+// CLAUDE_CONFIG_DIR that is also a sibling profile is read once.
+func dedupe(paths []string) []string {
+	seen := make(map[string]bool, len(paths))
+	out := paths[:0:0]
+	for _, p := range paths {
+		if seen[p] {
+			continue
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	return out
+}
+
+// ReadClaudeAccounts reads every config in paths and returns the distinct
+// accounts found, in path order.
+//
+// A path with no account (absent file, never signed in) is skipped silently:
+// that is the normal state of most candidates. A config that exists but
+// cannot be read or parsed is reported in the returned error WITHOUT
+// discarding the accounts that did load — one broken profile must not
+// un-name every other account. Callers that only want labels can use the
+// slice and ignore the error.
+func ReadClaudeAccounts(paths []string) ([]ClaudeAccount, error) {
+	var (
+		out  []ClaudeAccount
+		errs []error
+	)
+	seen := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		acct, err := ReadClaudeAccount(p)
+		switch {
+		case errors.Is(err, ErrNoClaudeAccount):
+			continue
+		case err != nil:
+			errs = append(errs, err)
+			continue
+		}
+		if seen[acct.UUID] {
+			continue
+		}
+		seen[acct.UUID] = true
+		out = append(out, acct)
+	}
+	return out, errors.Join(errs...)
 }
 
 // ReadClaudeAccount parses path and returns the account Claude Code is signed

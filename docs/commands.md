@@ -20,6 +20,7 @@ Every verb, every flag, with output captured by `task docs:capture` against the 
 |---|---|---|
 | `--json` | `list`, `find` | JSON instead of the table: an array for `list`, one object for `find` — see [JSON shape](#json-shape) |
 | `--running` | `list`, `find` | only profiles open right now; `unknown` is excluded deliberately |
+| `--reachable` | `list`, `find` | only browsers on the Claude account this session runs as |
 | `--all` | `list`, `find` | also scan the two Claude desktop-app extension ids |
 | `--root <dir>` | `list`, `find` | scan this user-data dir **instead of** the well-known ones; repeatable |
 | `--profiles` | `list` | include profiles without the extension |
@@ -59,12 +60,13 @@ A volt release build is stamped with the tag (`browserctrl version v0.1.0 (90d9f
 
 ## Shared flags
 
-`list` and `find` take the same four flags, so a query behaves identically whichever verb runs it. `list` takes one more of its own, `--profiles`.
+`list` and `find` take the same five flags, so a query behaves identically whichever verb runs it. `list` takes two more of its own, `--profiles` and `--account-alias`.
 
 | Flag | Effect |
 |---|---|
 | `--json` | Emit JSON instead of the table. `list` prints an array of entries, `find` prints the single matched entry. |
 | `--running` | Keep only profiles whose state is `running`. `unknown` is excluded on purpose (see [Table columns](#table-columns)). |
+| `--reachable` | Keep only browsers signed in to the Claude account **this session** runs as: the config `CLAUDE_CONFIG_DIR` selects, else `~/.claude.json`. These are the only ids `select_browser` accepts. Unlike the `CLAUDE ACCOUNT` labels it is deliberately session-specific, so the same command answers differently from a work profile and a personal one. If the session's account cannot be determined it exits 1 rather than print an empty list; if no browser is on that account it says so by name. See [Claude accounts](#claude-accounts). |
 | `--all` | Also scan the two extension ids allowed by the Claude desktop app's native-host manifest, not just the Claude Code extension. Entries carry the `extension` field so they can be told apart. |
 | `--root <dir>` | Scan this Chromium user-data directory **instead of** the well-known install locations. Repeatable. Entries are labelled `browser: custom`. Use it for `--user-data-dir` profiles such as Chrome for Testing or a Playwright persistent context. |
 | `--profiles` (`list` only) | Also list profiles that have **no** Claude extension installed, so a missing profile is visible instead of silently absent. See [list --profiles](#list---profiles). Not on `find`: such a profile has no device id to resolve. |
@@ -96,6 +98,7 @@ Flags:
   -h, --help                        help for list
       --json                        emit JSON instead of a table
       --profiles                    also list profiles that do NOT have the Claude extension installed
+      --reachable                   only browsers signed in to the Claude account this session runs as
       --root stringArray            scan this Chromium user-data dir instead of the well-known ones (repeatable)
       --running                     only profiles currently open in a running browser
 ```
@@ -103,9 +106,9 @@ Flags:
 ```
 $ browserctrl list
 STATE    MCP  DEVICE ID                             BROWSER  PROFILE     NAME     EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
-running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman     aman@example.com   chrome-main   other account 1
-running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work     aman@work.example  work-chrome   other account 1
-idle     yes  f836694e-b2f0-4e5b-93e4-ff946c6183ad  custom   Profile 23  legable  aman@legable.co    aman-legable  other account 2
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman     aman@example.com   chrome-main   aman@example.com
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work     aman@work.example  work-chrome   aman@example.com
+idle     yes  f836694e-b2f0-4e5b-93e4-ff946c6183ad  custom   Profile 23  legable  aman@legable.co    aman-legable  other account
 idle     no   -                                     custom   Profile 4   Fresh    fresh@example.com  -             -
 ```
 
@@ -114,8 +117,8 @@ The last row is a profile where the extension is installed but has never connect
 ```
 $ browserctrl list --running
 STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
-running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   other account 1
-running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   other account 1
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   aman@example.com
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   aman@example.com
 ```
 
 ```
@@ -171,10 +174,10 @@ Answers "why is my profile not in the list?". Chrome installs extensions **per p
 ```
 $ browserctrl list --profiles
 STATE    EXTENSION      MCP  DEVICE ID                             BROWSER  PROFILE     NAME      EMAIL                 DISPLAY NAME  CLAUDE ACCOUNT
-running  installed      yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman      aman@example.com      chrome-main   other account 1
+running  installed      yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman      aman@example.com      chrome-main   aman@example.com
 running  not installed  no   -                                     custom   Profile 26  Personal  personal@example.com  -             -
-running  installed      yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work      aman@work.example     work-chrome   other account 1
-idle     installed      yes  f836694e-b2f0-4e5b-93e4-ff946c6183ad  custom   Profile 23  legable   aman@legable.co       aman-legable  other account 2
+running  installed      yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work      aman@work.example     work-chrome   aman@example.com
+idle     installed      yes  f836694e-b2f0-4e5b-93e4-ff946c6183ad  custom   Profile 23  legable   aman@legable.co       aman-legable  other account
 idle     installed      no   -                                     custom   Profile 4   Fresh     fresh@example.com     -             -
 ```
 
@@ -192,25 +195,36 @@ It reads in plain words rather than uuids:
 
 | Cell | Meaning |
 |---|---|
-| an email address | the account Claude Code is signed in as right now — this session can reach these browsers |
-| `other account` (numbered `1`, `2`, … when there are several) | a different Claude account; this session cannot reach it, whatever the state column says |
+| an email address | a Claude account that one of your Claude Code profiles is signed in as; a session running as that account can reach these browsers |
+| `other account` (numbered `1`, `2`, … when there are several) | a Claude account no profile on this machine is signed in as, so it cannot be named |
 | a label you chose | an account you named with `--account-alias` |
 | `-` | the extension is installed but signed out (or, under `--profiles`, not installed at all) |
 
 ```
 $ browserctrl list --account-alias 22222222-2222-4222-8222-222222222222=work@example.com
 STATE    MCP  DEVICE ID                             BROWSER  PROFILE     NAME     EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
-running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman     aman@example.com   chrome-main   other account
-running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work     aman@work.example  work-chrome   other account
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default     Aman     aman@example.com   chrome-main   aman@example.com
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5   Work     aman@work.example  work-chrome   aman@example.com
 idle     yes  f836694e-b2f0-4e5b-93e4-ff946c6183ad  custom   Profile 23  legable  aman@legable.co    aman-legable  work@example.com
 idle     no   -                                     custom   Profile 4   Fresh    fresh@example.com  -             -
 ```
 
-**Why only one account gets an email.** Claude stores no email in the browser — only an account uuid. That was checked against the extension's own storage, claude.ai's site data inside the profile (`__qk_hint_account_uuid`, `ccd-sync-owner` and its analytics payloads, which carry `account_uuid` and `organization_uuid` and nothing else), Claude Code's config and every backup of it, and past session transcripts. The one place a uuid is paired with an email is Claude Code's config for the account it is signed in as, which is where the email cell comes from. Naming any other account is therefore something only you can do, with `--account-alias <uuid>=<label>`; take the uuid from `--json` (`accountUuid`) and put the flag in a shell alias.
+**Why only one account gets an email.** Claude stores no email in the browser — only an account uuid. That was checked against the extension's own storage, claude.ai's site data inside the profile (`__qk_hint_account_uuid`, `ccd-sync-owner` and its analytics payloads, which carry `account_uuid` and `organization_uuid` and nothing else), Claude Code's config and every backup of it, and past session transcripts. The one place a uuid is paired with an email is a Claude Code config, for the account that profile is signed in as, which is where the email cells come from. browserctrl reads every one it can find: the config `CLAUDE_CONFIG_DIR` points at, `~/.claude.json`, and each sibling profile directory matching `~/.claude*` (`~/.claude-work/.claude.json` and so on). If you keep several Claude Code profiles, every one of their accounts is named, and the answer does not depend on which shell you ask from — a plain terminal and a Claude Code session print the same table. A profile directory kept somewhere else is not discovered; name its account with `--account-alias`. Naming any other account is therefore something only you can do, with `--account-alias <uuid>=<label>`; take the uuid from `--json` (`accountUuid`) and put the flag in a shell alias.
 
 Labels are computed over the whole scan, not the rows being printed, so `--running` and `--profiles` never rename an account.
 
 **The `EMAIL` column is a different thing.** That is the Google/Microsoft account of the *browser profile*, from `Local State`. The two are unrelated: a profile signed in to Chrome as one person can be signed in to Claude as another, which is exactly the shape that makes a mismatch hard to spot.
+
+`--reachable` applies that rule for you: it keeps the browsers whose account is the one this session is signed in as.
+
+```
+$ browserctrl list --reachable
+STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   aman@example.com
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   aman@example.com
+```
+
+In the fixture the session runs as `aman@example.com`, so `Profile 23` (another account) and `Profile 4` (signed out) drop out. From a session on a different Claude Code profile the same command lists a different set, and when none qualifies it prints one line naming the session's account instead of the generic "is the extension installed?" hint.
 
 So a device id is usable when three things hold, and browserctrl can verify only the first two from disk: the extension is installed in that profile, the account matches the session's, and the extension's bridge is live at that moment. The third is knowable only from `list_connected_browsers`.
 
@@ -237,6 +251,7 @@ Flags:
       --all                scan the Claude desktop-app extension ids too, not just Claude Code's
   -h, --help               help for find
       --json               emit JSON instead of a table
+      --reachable          only browsers signed in to the Claude account this session runs as
       --root stringArray   scan this Chromium user-data dir instead of the well-known ones (repeatable)
       --running            only profiles currently open in a running browser
 ```
@@ -272,8 +287,8 @@ Ambiguous (both `chrome-main` and `work-chrome` contain `chrome` and both are ru
 $ browserctrl find chrome
 error: query matches more than one browser
 STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
-running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   other account 1
-running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   other account 1
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   aman@example.com
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   aman@example.com
 ```
 
 Everything above goes to stderr; stdout stays empty so `$(…)` captures nothing rather than garbage. Add a term to disambiguate: `browserctrl find chrome main`.

@@ -6,6 +6,8 @@ browserctrl is open source (khanakia/browserctrl). Everything runs locally and r
 
 Multiple Claude accounts: `list` shows a CLAUDE ACCOUNT column, because the MCP's list_connected_browsers only reports browsers signed in to the same Claude account as the session asking — a browser on another account is unreachable from it however open it is. The signed-in account is named by email; others show as "other account" and can be named with --account-alias, since Claude stores no email for them on disk.
 
+Agents should run `browserctrl list --running --reachable --json`: --reachable keeps only browsers on the Claude account the current session runs as, which are the only ids select_browser accepts.
+
 Prerequisite: the Claude in Chrome extension must be installed in a profile for that profile to have a device id at all — the extension mints the id on its first run there, and Chrome scopes extensions per profile. A profile without it is invisible to browserctrl and to the MCP's own list_connected_browsers; `browserctrl list --profiles` shows which profiles are missing it.
 
 ## Docs

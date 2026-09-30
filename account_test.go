@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -53,12 +55,12 @@ func TestAccountAliases(t *testing.T) {
 
 func TestNewAccountLabeler(t *testing.T) {
 	t.Parallel()
-	session := browser.ClaudeAccount{UUID: "u-session", Email: "me@x.io"}
-	aliases := map[string]string{"u-other": "work account"}
+	known := map[string]string{"u-personal": "me@x.io", "u-work": "me@work.io"}
+	aliases := map[string]string{"u-other": "client account"}
 	entries := []browser.Entry{
-		{AccountUUID: "u-session"}, {AccountUUID: "u-other"}, {AccountUUID: "u-third"}, {},
+		{AccountUUID: "u-personal"}, {AccountUUID: "u-work"}, {AccountUUID: "u-other"}, {AccountUUID: "u-third"}, {},
 	}
-	label := newAccountLabeler(session, aliases, entries)
+	label := newAccountLabeler(known, aliases, entries)
 
 	for _, tc := range []struct {
 		name string
@@ -66,8 +68,11 @@ func TestNewAccountLabeler(t *testing.T) {
 		want string
 	}{
 		{"signed out shows nothing", browser.Entry{}, ""},
-		{"session account shows its email", browser.Entry{AccountUUID: "u-session"}, "me@x.io"},
-		{"aliased account shows the label", browser.Entry{AccountUUID: "u-other"}, "work account"},
+		// Every account some profile is signed in as gets its email — not
+		// just the profile the current shell happens to select.
+		{"a known account shows its email", browser.Entry{AccountUUID: "u-personal"}, "me@x.io"},
+		{"a second known account shows its email too", browser.Entry{AccountUUID: "u-work"}, "me@work.io"},
+		{"aliased account shows the label", browser.Entry{AccountUUID: "u-other"}, "client account"},
 		// The only unnamed account in the set: no number to disambiguate
 		// against, so numbering it would be noise.
 		{"the one unnamed account is just other", browser.Entry{AccountUUID: "u-third"}, labelOtherAccount},
@@ -83,7 +88,7 @@ func TestNewAccountLabeler(t *testing.T) {
 	t.Run("several unnamed accounts are numbered in listing order", func(t *testing.T) {
 		t.Parallel()
 		es := []browser.Entry{{AccountUUID: "u-b"}, {AccountUUID: "u-a"}, {AccountUUID: "u-b"}}
-		l := newAccountLabeler(browser.ClaudeAccount{}, nil, es)
+		l := newAccountLabeler(nil, nil, es)
 		if got, want := l(es[0]), labelOtherAccount+" 1"; got != want {
 			t.Errorf("first seen: got %q, want %q", got, want)
 		}
@@ -96,60 +101,89 @@ func TestNewAccountLabeler(t *testing.T) {
 			t.Errorf("repeat: got %q, want %q", got, want)
 		}
 	})
+	t.Run("a known account does not consume a number", func(t *testing.T) {
+		t.Parallel()
+		// With one named and one unnamed account, the unnamed one is the only
+		// "other" and must not be called "other account 2".
+		es := []browser.Entry{{AccountUUID: "u-personal"}, {AccountUUID: "u-x"}}
+		l := newAccountLabeler(known, nil, es)
+		if got := l(es[1]); got != labelOtherAccount {
+			t.Errorf("got %q, want %q", got, labelOtherAccount)
+		}
+	})
 	t.Run("an unknown account not in the set still labels", func(t *testing.T) {
 		t.Parallel()
 		// Defensive: the labeler must never return an empty cell for a
 		// signed-in profile just because it was not in the numbering pass.
-		l := newAccountLabeler(session, nil, nil)
+		l := newAccountLabeler(known, nil, nil)
 		if got := l(browser.Entry{AccountUUID: "u-surprise"}); got != labelOtherAccount {
 			t.Errorf("got %q, want %q", got, labelOtherAccount)
 		}
 	})
-
-	t.Run("an alias never overrides the session account", func(t *testing.T) {
+	t.Run("an alias never overrides a known email", func(t *testing.T) {
 		t.Parallel()
-		// Otherwise a stale alias could rename the one account we can prove,
-		// which is the only trustworthy label in the table.
-		l := newAccountLabeler(session, map[string]string{"u-session": "WRONG"}, nil)
-		if got := l(browser.Entry{AccountUUID: "u-session"}); got != "me@x.io" {
-			t.Errorf("got %q, want the session email", got)
+		// A stale alias must not rename an account the machine can prove.
+		l := newAccountLabeler(known, map[string]string{"u-personal": "WRONG"}, nil)
+		if got := l(browser.Entry{AccountUUID: "u-personal"}); got != "me@x.io" {
+			t.Errorf("got %q, want the known email", got)
 		}
 	})
-	t.Run("no signed-in account falls back to uuids", func(t *testing.T) {
+	t.Run("a known account with no email falls back rather than printing blank", func(t *testing.T) {
 		t.Parallel()
-		l := newAccountLabeler(browser.ClaudeAccount{}, nil, nil)
-		if got := l(browser.Entry{AccountUUID: "u-short"}); got != labelOtherAccount {
-			t.Errorf("got %q, want %q", got, labelOtherAccount)
-		}
-	})
-	t.Run("session account without an email falls back to its uuid", func(t *testing.T) {
-		t.Parallel()
-		// An account we can identify but cannot name is no better than any
-		// other uuid — it must not print an empty cell.
-		l := newAccountLabeler(browser.ClaudeAccount{UUID: "u-short"}, nil, nil)
-		if got := l(browser.Entry{AccountUUID: "u-short"}); got != labelOtherAccount {
+		l := newAccountLabeler(map[string]string{"u-noemail": ""}, nil, nil)
+		if got := l(browser.Entry{AccountUUID: "u-noemail"}); got != labelOtherAccount {
 			t.Errorf("got %q, want %q", got, labelOtherAccount)
 		}
 	})
 }
 
-// sessionAccount must degrade to the zero account rather than fail: a browser
+// knownAccounts must degrade to "no names" rather than fail: a browser
 // inventory is still useful on a machine where Claude Code is absent or
 // logged out, it just cannot name any account for free.
-func TestSessionAccount_FallsBackWhenNothingIsSignedIn(t *testing.T) {
-	// Not parallel: mutates HOME.
+func TestKnownAccounts_EmptyWhenNothingIsSignedIn(t *testing.T) {
+	// Not parallel: mutates the environment.
 	t.Setenv("HOME", t.TempDir())
-	if got := sessionAccount(); got != (browser.ClaudeAccount{}) {
-		t.Errorf("got %+v, want the zero account", got)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	if got := knownAccounts(); len(got) != 0 {
+		t.Errorf("got %v, want no accounts", got)
 	}
 }
 
-// And with no home at all, the path cannot even be built.
-func TestSessionAccount_NoHome(t *testing.T) {
-	// Not parallel: mutates HOME.
+// And with no home at all, the candidate paths cannot even be built.
+func TestKnownAccounts_NoHome(t *testing.T) {
+	// Not parallel: mutates the environment.
 	t.Setenv("HOME", "")
-	if got := sessionAccount(); got != (browser.ClaudeAccount{}) {
-		t.Errorf("got %+v, want the zero account", got)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	if got := knownAccounts(); got != nil {
+		t.Errorf("got %v, want nil", got)
+	}
+}
+
+// The regression this exists for: the label must not depend on which shell
+// asked. A profile directory next to the default one names its account even
+// when CLAUDE_CONFIG_DIR is unset, exactly as a plain terminal runs it.
+func TestKnownAccounts_FindsSiblingProfilesWithoutTheEnvVar(t *testing.T) {
+	// Not parallel: mutates the environment.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	write := func(path, uuid, email string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		body := `{"oauthAccount":{"accountUuid":"` + uuid + `","emailAddress":"` + email + `"}}`
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(home, ".claude.json"), "u-personal", "me@x.io")
+	write(filepath.Join(home, ".claude-work", ".claude.json"), "u-work", "me@work.io")
+
+	got := knownAccounts()
+	want := map[string]string{"u-personal": "me@x.io", "u-work": "me@work.io"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
 	}
 }
 
@@ -164,8 +198,8 @@ func TestAccountLabels_AreStableUnderFiltering(t *testing.T) {
 	}
 	running := browser.OnlyRunning(all)
 
-	full := newAccountLabeler(browser.ClaudeAccount{}, nil, all)
-	filtered := newAccountLabeler(browser.ClaudeAccount{}, nil, all)
+	full := newAccountLabeler(nil, nil, all)
+	filtered := newAccountLabeler(nil, nil, all)
 	if got, want := filtered(running[0]), full(all[1]); got != want {
 		t.Errorf("filtered listing says %q, full listing says %q", got, want)
 	}

@@ -47,9 +47,9 @@ func TestRun_ScanErrorExits1(t *testing.T) {
 
 // Pins writeTable's error arms: header write failure, and the extra ERROR
 // cell for an entry whose store could not be read.
-// testLabeler is the real labeler with nothing to resolve from, i.e. what a
-// machine without Claude Code signed in produces.
-func testLabeler() accountLabeler { return newAccountLabeler(browser.ClaudeAccount{}, nil, nil) }
+// testLabeler is the real labeler with no known accounts, i.e. what a machine
+// without Claude Code signed in produces.
+func testLabeler() accountLabeler { return newAccountLabeler(nil, nil, nil) }
 
 func TestWriteTable(t *testing.T) {
 	t.Parallel()

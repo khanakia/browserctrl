@@ -51,3 +51,26 @@ func OnlyRunning(entries []Entry) []Entry {
 	}
 	return out
 }
+
+// OnlyAccount keeps entries whose extension is signed in to the Claude
+// account uuid — the browsers a session running as that account can reach.
+//
+// Why it exists: the MCP pairs a session only with browsers on its own
+// account, so an id from any other entry is rejected however open that
+// browser is. An empty uuid matches nothing, on purpose: "which account?"
+// left unanswered must not be read as "every signed-out profile".
+//
+// Necessary, not sufficient: the extension's bridge must also be live at the
+// moment of the call, and nothing on disk records that.
+func OnlyAccount(entries []Entry, uuid string) []Entry {
+	if uuid == "" {
+		return nil
+	}
+	var out []Entry
+	for _, e := range entries {
+		if e.AccountUUID == uuid {
+			out = append(out, e)
+		}
+	}
+	return out
+}

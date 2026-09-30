@@ -13,7 +13,7 @@ description: Pick the right Chrome/Chromium browser for the claude-in-chrome MCP
 
 Before any `claude-in-chrome` action when more than one browser may be connected:
 
-1. Run `browserctrl list --running --json`.
+1. Run `browserctrl list --running --reachable --json`. `--reachable` keeps only browsers on the Claude account this session runs as; any other id is rejected by `select_browser` however open that browser is.
 2. Pick the entry whose `email`, `profileName`, `displayName` or `browser` matches what the user asked for ("my work chrome" → `displayName: work-chrome` or `email: aman@work.example`).
 3. Call `select_browser` with that entry's `deviceId`.
 4. Fall back to `switch_browser` (the click-in-every-window prompt) **only** if the list is empty or nothing matches unambiguously.
@@ -24,9 +24,9 @@ The `deviceId` field is byte-for-byte the id `list_connected_browsers` reports; 
 
 ```sh
 browserctrl list                    # table: STATE MCP DEVICE ID BROWSER PROFILE NAME EMAIL DISPLAY NAME CLAUDE ACCOUNT
-browserctrl list --running --json   # only open profiles, as JSON — what an agent should read
+browserctrl list --running --reachable --json   # open AND on this session's account — what an agent should read
 browserctrl find <terms...>         # prints exactly one device id; every term must match some field
-browserctrl find work --running     # same, restricted to open browsers
+browserctrl find work --running --reachable   # same, restricted to browsers this session can attach to
 browserctrl list --root <dir>       # scan a --user-data-dir profile (Chrome for Testing, Playwright)
 browserctrl list --all              # include the Claude desktop-app extension ids
 browserctrl list --profiles         # also show profiles with NO extension (why one is missing)
@@ -62,7 +62,7 @@ f836694e-b2f0-4e5b-93e4-ff946c6183ad
 
 ## When select_browser rejects a correct id
 
-`No connected browser has deviceId …` on an id that `browserctrl list` shows as `running` is not a contradiction: `running` is a fact on disk (the browser holds the profile's extension lock), while *connected* is a live bridge that nothing on disk records. Check two things before retrying blindly. **Account:** compare that entry's `accountUuid` with the other connected browsers' — the MCP only reports browsers on the session's own account, so a mismatch means that browser is unreachable from this session, permanently, and the user must switch accounts or use another browser. **Timing:** if the account matches, the bridge is simply not up yet; it connects on demand, so call `list_connected_browsers` once more, and if it is still absent tell the user to open that window and click the extension rather than silently selecting a different browser.
+`No connected browser has deviceId …` on an id that `browserctrl list` shows as `running` is not a contradiction: `running` is a fact on disk (the browser holds the profile's extension lock), while *connected* is a live bridge that nothing on disk records. Two causes. **Account:** the MCP only pairs a session with browsers signed in to the session's own Claude account, so an id from a browser on another account never resolves; this is why the rule above uses `--reachable`, and if `browserctrl list --running --reachable` is empty while plain `browserctrl list --running` is not, tell the user that their open browsers are signed in to a different Claude account than this session (the `CLAUDE ACCOUNT` column names it) — they must sign the extension in to this account in one browser profile, or run the session under the other account. **Timing:** if the id came from `--reachable`, the account is right and the bridge is simply not up yet; it connects on demand, so call `list_connected_browsers` once more, and if it is still absent ask the user to open that window and click the extension rather than silently selecting a different browser.
 
 ## When the user says a browser is missing
 
