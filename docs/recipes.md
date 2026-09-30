@@ -10,13 +10,13 @@ The problem: with several browsers connected, Claude Code's `claude-in-chrome` M
 
 ```
 # Chrome browser selection
-Before any claude-in-chrome action, run `browserctrl list --running --json` and pick the deviceId whose profileName / email / displayName matches what I asked for (e.g. "my legable chrome" → the entry with email aman@legable.co). Call select_browser with that id directly. Only fall back to switch_browser if the list is empty or the match is ambiguous.
+Before any claude-in-chrome action, run `browserctrl list --running --reachable --json` and pick the deviceId whose profileName / email / displayName matches what I asked for (e.g. "my legable chrome" → the entry with email aman@legable.co). Call select_browser with that id directly. Only fall back to switch_browser if the list is empty or the match is ambiguous.
 ```
 
 What the agent then sees, and why each field is there:
 
 ```
-$ browserctrl list --running --json
+$ browserctrl list --running --reachable --json
 [
   {
     "deviceId": "ce9a8e06-61d3-4e7b-894b-13fd92987212",
@@ -52,6 +52,7 @@ $ browserctrl list --running --json
 ```
 
 - `--running` because `select_browser` can only attach to an open window; idle profiles would be noise.
+- `--reachable` because it can only attach to a browser on the session's own Claude account; an id from a browser signed in to another account is rejected with "No connected browser has deviceId …" however open it is.
 - `email` is the most reliable human key: profile names are often auto-generated (`Profile 2`, `Person 1`), emails are not.
 - `displayName` is the name you gave the extension; once every browser has one (next recipe) the agent can match on that alone.
 
@@ -92,8 +93,8 @@ When the MCP reports `Browser 1 / 2 / 3` and you need to know which window each 
 ```
 $ browserctrl list --running
 STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
-running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   other account 1
-running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   other account 1
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   aman@example.com
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   aman@example.com
 ```
 
 The `DEVICE ID` column is byte-for-byte the `deviceId` in `list_connected_browsers`. The `name` there (`Browser 1`) is assigned per listing and can change between calls; the id does not, so always match on the id.
@@ -133,7 +134,7 @@ When several Claude accounts are in play, a correct device id can still fail wit
 browserctrl list
 ```
 
-The account Claude Code is signed in as appears as its email; every other one appears as `other account`, because Claude stores no email for them in the browser — only a uuid. If you want real names, take the uuids from `--json` and name them once:
+Every account one of your Claude Code profiles is signed in as appears as its email; any other appears as `other account`, because Claude stores no email for it in the browser — only a uuid. If you want real names, take the uuids from `--json` and name them once:
 
 ```sh
 alias bl='browserctrl list --account-alias 2f7c1b90-...=work@example.com --account-alias 8ad41c02-...=personal@example.com'
@@ -170,8 +171,8 @@ Ambiguity looks like this and leaves stdout empty, so `$id` stays unset rather t
 $ browserctrl find chrome
 error: query matches more than one browser
 STATE    MCP  DEVICE ID                             BROWSER  PROFILE    NAME  EMAIL              DISPLAY NAME  CLAUDE ACCOUNT
-running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   other account 1
-running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   other account 1
+running  yes  ce9a8e06-61d3-4e7b-894b-13fd92987212  custom   Default    Aman  aman@example.com   chrome-main   aman@example.com
+running  yes  2aa533d3-d03f-4dd8-b664-f59b8930eccc  custom   Profile 5  Work  aman@work.example  work-chrome   aman@example.com
 ```
 
 ## jq cookbook
@@ -257,3 +258,6 @@ func TestPicksWorkChrome(t *testing.T) {
 ```
 
 To simulate a *running* profile, hold `flock(LOCK_EX)` on `browsertest.LockPath(root, "Profile 5", ext)` for the duration of the test — that is exactly what `internal/docfixture` does to produce the `running` rows in these docs. `browsertest.Build` is the same thing without `testing.T`, for programs rather than tests.
+
+```
+```

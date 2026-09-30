@@ -60,3 +60,24 @@ func TestOnlyRunning(t *testing.T) {
 		t.Errorf("nil in → nil out, got %v", got)
 	}
 }
+
+func TestOnlyAccount(t *testing.T) {
+	t.Parallel()
+	es := []Entry{
+		{DeviceID: "a", AccountUUID: "u-1"},
+		{DeviceID: "b", AccountUUID: "u-2"},
+		{DeviceID: "c", AccountUUID: "u-1"},
+		{DeviceID: "d"}, // signed out
+	}
+	if got, want := ids(OnlyAccount(es, "u-1")), []string{"a", "c"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got := OnlyAccount(es, "u-none"); got != nil {
+		t.Errorf("unknown account: got %v, want nil", got)
+	}
+	// An empty uuid must not match the signed-out entry: "which account?"
+	// unanswered is not "every signed-out profile".
+	if got := OnlyAccount(es, ""); got != nil {
+		t.Errorf("empty uuid: got %v, want nil", got)
+	}
+}

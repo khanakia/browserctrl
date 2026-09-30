@@ -38,6 +38,13 @@ tasks:
     cmds:
       - go run ./internal/docfixture .docs-fixture ./bin/{{.BIN}} {{.CLI_ARGS}}
 
+  docs:regen:
+    desc: 'Rewrite every captured `$ browserctrl list|find` block in README + docs from the fixture (idempotent)'
+    deps: [build]
+    cmds:
+      - go build -o bin/docfixture ./internal/docfixture
+      - python3 scripts/regen-docs.py
+
   fmt:
     desc: gofmt every Go file in place
     cmds:

@@ -17,13 +17,13 @@ Or from a clone: `task build` produces `bin/browserctrl`, `task install` puts it
 
 | Guide | Covers |
 |---|---|
-| [Command reference](commands.md) | **every verb** — `list` · `find` · `completion` · `--version` — every flag, real output, exit codes, the JSON shape |
-| [Recipes](recipes.md) | Claude Code integration end to end, shell and jq workflows, custom `--user-data-dir` roots, naming browsers, using the fixture package in your own tests |
-| [Go API](go-api.md) | importing `browser` and `browser/browsertest` — `Scan`, `Match`, `OnlyRunning`, `ReadProfiles`, `ReadExtensionStore`, `DefaultRoots`, fixtures |
+| [Command reference](commands.md) | **every verb** — `list` · `find` · `skills` · `completion` · `--version` — every flag (`--running`, `--reachable`, `--profiles`, `--account-alias`, …), real output, exit codes, the JSON shape, and how Claude accounts decide which browsers a session can reach |
+| [Recipes](recipes.md) | Claude Code integration end to end, which Claude account each browser is on, why a profile is missing, shell and jq workflows, custom `--user-data-dir` roots, naming browsers, using the fixture package in your own tests |
+| [Go API](go-api.md) | importing `browser` and `browser/browsertest` — `Scan`, `Match`, `OnlyRunning`, `OnlyAccount`, `ReadClaudeAccounts`, `ClaudeConfigPaths`, `ReadProfiles`, `ReadExtensionStore`, `DefaultRoots`, fixtures |
 
 ## Design promises (hold everywhere)
 
-- **Read-only.** The tool never opens a live browser store. Each extension LevelDB is copied to a temp dir, opened read-only, and the copy is deleted before the command returns. `Local State` is read, never written.
+- **Read-only.** The tool never opens a live browser store. Each extension LevelDB is copied to a temp dir, opened read-only, and the copy is deleted before the command returns. `Local State` is read, never written, and so are the Claude Code configs consulted to name accounts; login tokens are never looked up or printed.
 - **Never a wrong "idle".** The running probe answers `running`, `idle`, or `unknown`; on a platform or file where it cannot tell (Windows, or an unreadable `LOCK`) it says `unknown`, and `--running` / `OnlyRunning` exclude `unknown` rather than guess.
 - **One bad profile never hides the others.** A store that cannot be read (for example a snapshot taken mid-compaction) is reported inline in its own row with an `error` field; the scan continues.
 - **Stable machine interface.** `--json` emits the same `Entry` objects on every verb; exit codes are `0` success, `1` failure or no match, `2` ambiguous match (candidates on stderr).

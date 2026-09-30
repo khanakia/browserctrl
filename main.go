@@ -41,8 +41,11 @@ const (
 const (
 	flagJSON    = "json"
 	flagRunning = "running"
-	flagAll     = "all"
-	flagRoot    = "root"
+	// flagReachable keeps only browsers on the account THIS session is signed
+	// in as — the ones select_browser can actually attach to.
+	flagReachable = "reachable"
+	flagAll       = "all"
+	flagRoot      = "root"
 	// flagProfiles is on `list` only: `find` resolves a device id, and a
 	// profile without an extension has none to resolve.
 	flagProfiles = "profiles"
@@ -81,13 +84,20 @@ func releaseVersion(info buildinfo.Info) string {
 var (
 	errNoMatch   = errors.New("no browser matches the query")
 	errAmbiguous = errors.New("query matches more than one browser")
+	// errNoSessionAccount: --reachable was asked for but the account this
+	// session runs as cannot be determined. An error rather than an empty
+	// list, because "nothing is reachable" and "cannot tell" call for
+	// different actions and an agent would otherwise conclude the former.
+	errNoSessionAccount = errors.New("--" + flagReachable + ": cannot tell which Claude account this session is signed in as (no account in Claude Code's config)")
 )
 
 // listFlags is the parsed flag set shared by `list` and `find`.
 type listFlags struct {
 	json    bool
 	running bool
-	all     bool
+	// reachable narrows to browsers on the session's own Claude account.
+	reachable bool
+	all       bool
 	// roots, when non-empty, REPLACES the well-known install locations with
 	// the given user-data dirs (labelled browser=custom).
 	roots []string
@@ -133,25 +143,26 @@ const (
 // newAccountLabeler builds the column's formatter.
 //
 // Why not just print the uuid: a Claude account uuid tells the reader
-// nothing, and the account's EMAIL cannot be recovered for any account but
-// the signed-in one — Claude stores no email in the browser at all (checked
-// 2026-09-25 against the extension store, claude.ai's own site data,
-// Claude Code's config and its backups, and past transcripts). So the column
-// answers the question the uuid was standing in for: can THIS session reach
-// that browser? Preference order: the signed-in account's email, a label the
-// user gave, otherwise "other account" — numbered only when there are
-// several, so the common two-account case reads as plain English.
+// nothing. The column names the account wherever a name exists — the email
+// of any account a Claude Code profile on this machine is signed in as, then
+// a label the user gave — and otherwise says "other account", numbered only
+// when there are several so the common case reads as plain English.
 //
-// entries is the set about to be rendered; numbering follows their order so
-// the same listing always labels the same account the same way.
-func newAccountLabeler(session browser.ClaudeAccount, aliases map[string]string, entries []browser.Entry) accountLabeler {
-	others := otherAccountNumbers(session.UUID, aliases, entries)
+// known maps account uuid → email, gathered from every profile config rather
+// than only the current process's. The label must not depend on which shell
+// asked: keying it on one profile made the same browser read as an email
+// inside a Claude Code session and as "other account" from a plain terminal.
+//
+// entries is the unfiltered scan; numbering follows its order so the same
+// machine always labels the same account the same way.
+func newAccountLabeler(known, aliases map[string]string, entries []browser.Entry) accountLabeler {
+	others := otherAccountNumbers(known, aliases, entries)
 	return func(e browser.Entry) string {
-		switch {
-		case e.AccountUUID == "":
+		if e.AccountUUID == "" {
 			return ""
-		case session.UUID != "" && e.AccountUUID == session.UUID && session.Email != "":
-			return session.Email
+		}
+		if email, ok := known[e.AccountUUID]; ok && email != "" {
+			return email
 		}
 		if label, ok := aliases[e.AccountUUID]; ok {
 			return label
@@ -163,15 +174,18 @@ func newAccountLabeler(session browser.ClaudeAccount, aliases map[string]string,
 	}
 }
 
-// otherAccountNumbers assigns 1..N to the accounts that are neither the
-// signed-in one nor aliased, in the order they appear. A single such account
+// otherAccountNumbers assigns 1..N to the accounts that have neither a known
+// email nor an alias, in the order they appear. A single such account
 // maps to 0, meaning "do not number it": "other account" beats "other
 // account 1" when there is nothing to tell it apart from.
-func otherAccountNumbers(sessionUUID string, aliases map[string]string, entries []browser.Entry) map[string]int {
+func otherAccountNumbers(known, aliases map[string]string, entries []browser.Entry) map[string]int {
 	order := make([]string, 0, len(entries))
 	seen := make(map[string]bool, len(entries))
 	for _, e := range entries {
-		if e.AccountUUID == "" || e.AccountUUID == sessionUUID || seen[e.AccountUUID] {
+		if e.AccountUUID == "" || seen[e.AccountUUID] {
+			continue
+		}
+		if email := known[e.AccountUUID]; email != "" {
 			continue
 		}
 		if _, aliased := aliases[e.AccountUUID]; aliased {
@@ -191,20 +205,26 @@ func otherAccountNumbers(sessionUUID string, aliases map[string]string, entries 
 	return out
 }
 
-// sessionAccount reads the account Claude Code is signed in as. Any failure
-// degrades to the zero account: the listing still works, accounts just show
-// as uuids. That is the whole point of the fallback — a browser inventory
-// must not fail because Claude Code is missing or logged out.
-func sessionAccount() browser.ClaudeAccount {
-	path, err := browser.DefaultClaudeConfigPath()
+// knownAccounts gathers uuid → email for every Claude account that some
+// Claude Code profile on this machine is signed in as.
+//
+// Any failure degrades to fewer names, never to an error: the listing still
+// works, unnamed accounts just show as "other account". A browser inventory
+// must not fail because Claude Code is missing, logged out, or has one
+// profile with a broken config — so the error from ReadClaudeAccounts, which
+// reports exactly that last case alongside the accounts that did load, is
+// deliberately dropped here.
+func knownAccounts() map[string]string {
+	paths, err := browser.ClaudeConfigPaths()
 	if err != nil {
-		return browser.ClaudeAccount{}
+		return nil
 	}
-	acct, err := browser.ReadClaudeAccount(path)
-	if err != nil {
-		return browser.ClaudeAccount{}
+	accounts, _ := browser.ReadClaudeAccounts(paths)
+	out := make(map[string]string, len(accounts))
+	for _, a := range accounts {
+		out[a.UUID] = a.Email
 	}
-	return acct
+	return out
 }
 
 func main() {
@@ -280,6 +300,7 @@ func shortCommit(c string) string {
 func addListFlags(cmd *cobra.Command, f *listFlags) {
 	cmd.Flags().BoolVar(&f.json, flagJSON, false, "emit JSON instead of a table")
 	cmd.Flags().BoolVar(&f.running, flagRunning, false, "only profiles currently open in a running browser")
+	cmd.Flags().BoolVar(&f.reachable, flagReachable, false, "only browsers signed in to the Claude account this session runs as")
 	cmd.Flags().BoolVar(&f.all, flagAll, false, "scan the Claude desktop-app extension ids too, not just Claude Code's")
 	cmd.Flags().StringArrayVar(&f.roots, flagRoot, nil, "scan this Chromium user-data dir instead of the well-known ones (repeatable)")
 }
@@ -299,10 +320,11 @@ you pass --profiles.`,
   browserctrl list --account-alias 2f7c1b90-...=work@example.com`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			entries, all, err := scan(cmd.Context(), f)
+			res, err := scan(cmd.Context(), f)
 			if err != nil {
 				return err
 			}
+			entries, all, session := res.entries, res.all, res.session
 			if f.json {
 				return writeJSON(cmd.OutOrStdout(), entries)
 			}
@@ -310,7 +332,10 @@ you pass --profiles.`,
 			if err != nil {
 				return err
 			}
-			label := newAccountLabeler(sessionAccount(), aliases, all)
+			if f.reachable && len(entries) == 0 {
+				return writeNoneReachable(cmd.OutOrStdout(), session)
+			}
+			label := newAccountLabeler(knownAccounts(), aliases, all)
 			if f.profiles {
 				return writeProfilesTable(cmd.OutOrStdout(), entries, label)
 			}
@@ -337,10 +362,11 @@ candidates are listed on stderr and the exit code is 2.`,
   DEVICE=$(browserctrl find analyzify)`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			entries, all, err := scan(cmd.Context(), f)
+			res, err := scan(cmd.Context(), f)
 			if err != nil {
 				return err
 			}
+			entries, all := res.entries, res.all
 			matches := browser.Match(entries, strings.Join(args, " "))
 			hit, err := pickOne(matches)
 			if err != nil {
@@ -348,7 +374,7 @@ candidates are listed on stderr and the exit code is 2.`,
 					// Best-effort diagnostics on stderr; the ambiguity error is
 					// the result, so a failure to print candidates is not promoted.
 					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "error:", err)
-					_ = writeTable(cmd.ErrOrStderr(), matches, newAccountLabeler(sessionAccount(), nil, all))
+					_ = writeTable(cmd.ErrOrStderr(), matches, newAccountLabeler(knownAccounts(), nil, all))
 				}
 				return err
 			}
@@ -366,11 +392,11 @@ candidates are listed on stderr and the exit code is 2.`,
 // scan runs browser.Scan with the flag-derived options and applies the
 // --running filter. --all widens the extension set to every known id.
 //
-// It returns the filtered entries AND the unfiltered scan. The second value
-// is what account labels are computed from: numbering accounts over the rows
+// It returns the filtered entries AND the unfiltered scan (see scanned). The
+// unfiltered one is what account labels are computed from: numbering accounts over the rows
 // being printed would let `--running` rename an account between two commands
 // on the same machine, which is worse than no label at all.
-func scan(ctx context.Context, f listFlags) (entries, all []browser.Entry, err error) {
+func scan(ctx context.Context, f listFlags) (scanned, error) {
 	opts := browser.Options{Extensions: []browser.ExtensionID{browser.ExtClaudeCode}}
 	if f.all {
 		opts.Extensions = browser.ExtensionValues
@@ -379,15 +405,67 @@ func scan(ctx context.Context, f listFlags) (entries, all []browser.Entry, err e
 	for _, r := range f.roots {
 		opts.Roots = append(opts.Roots, browser.Root{Kind: browser.KindCustom, Path: r})
 	}
-	all, err = browser.Scan(ctx, opts)
+	all, err := browser.Scan(ctx, opts)
 	if err != nil {
-		return nil, nil, err
+		return scanned{}, err
 	}
-	entries = all
+	res := scanned{entries: all, all: all}
 	if f.running {
-		entries = browser.OnlyRunning(all)
+		res.entries = browser.OnlyRunning(res.entries)
 	}
-	return entries, all, nil
+	if f.reachable {
+		if res.session, err = sessionAccount(); err != nil {
+			return scanned{}, err
+		}
+		res.entries = browser.OnlyAccount(res.entries, res.session.UUID)
+	}
+	return res, nil
+}
+
+// scanned is what scan hands back: the rows to print, the unfiltered scan
+// the account labels are numbered over, and — only under --reachable — the
+// session account the rows were filtered by, so the "none reachable" hint
+// can name it without reading the config a second time.
+type scanned struct {
+	entries []browser.Entry
+	all     []browser.Entry
+	session browser.ClaudeAccount
+}
+
+// hintNoneReachable replaces the generic empty-table hint under --reachable:
+// "is the extension installed?" would send the reader the wrong way when the
+// extension is installed everywhere and simply signed in to another account.
+const hintNoneReachable = "no matching browser is signed in to %s, the Claude account this session runs as (plain `browserctrl list` shows which account each browser is on)\n"
+
+// writeNoneReachable prints hintNoneReachable naming the session account by
+// email, or by uuid for an account whose config carries no email.
+func writeNoneReachable(w io.Writer, session browser.ClaudeAccount) error {
+	name := session.Email
+	if name == "" {
+		name = session.UUID
+	}
+	_, err := fmt.Fprintf(w, hintNoneReachable, name)
+	return err
+}
+
+// sessionAccount is the Claude account THIS process's Claude Code profile is
+// signed in as: the config CLAUDE_CONFIG_DIR selects, else ~/.claude.json.
+//
+// Unlike knownAccounts, which names every account on the machine, this one
+// must be specific to the asking shell — reachability is a fact about the
+// session, so the same command rightly answers differently from a work
+// profile and a personal one. Run from a plain terminal it describes the
+// session a `claude` started there would get.
+func sessionAccount() (browser.ClaudeAccount, error) {
+	path, err := browser.DefaultClaudeConfigPath()
+	if err != nil {
+		return browser.ClaudeAccount{}, fmt.Errorf("%w: %w", errNoSessionAccount, err)
+	}
+	acct, err := browser.ReadClaudeAccount(path)
+	if err != nil {
+		return browser.ClaudeAccount{}, fmt.Errorf("%w: %w", errNoSessionAccount, err)
+	}
+	return acct, nil
 }
 
 // pickOne resolves a match set to exactly one entry.

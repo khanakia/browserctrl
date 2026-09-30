@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 
 	"github.com/khanakia/browserctrl/browser"
@@ -121,8 +122,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	defer release()
 
+	configDir, err := writeSessionConfig(root)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return exitFailure
+	}
 	cmd := exec.Command(bin, append(rest, "--root", root)...)
 	cmd.Stdout, cmd.Stderr = stdout, stderr
+	cmd.Env = append(os.Environ(), claudeConfigDirEnv+"="+configDir)
 	err = cmd.Run()
 	var exit *exec.ExitError
 	switch {
@@ -134,6 +141,38 @@ func run(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, "run browserctrl:", err)
 		return exitFailure
 	}
+}
+
+// The captured session: browserctrl is run as a Claude Code profile signed in
+// to fixtureAccountA, so the docs show a named account, an unnamed one and a
+// working --reachable — and show the same thing whoever captures them.
+const (
+	claudeConfigDirEnv  = "CLAUDE_CONFIG_DIR"
+	sessionConfigSubdir = "claude-config"
+	sessionConfigFile   = ".claude.json"
+	sessionEmail        = "aman@example.com"
+	sessionConfigMode   = 0o644
+	sessionDirMode      = 0o755
+)
+
+// writeSessionConfig writes the fixture profile's config under root and
+// returns its directory. Relative is fine: the child inherits this process's
+// working directory, so it resolves the path exactly as we do. Rewritten on
+// every run — the root is reused across captures and the file is tiny, so
+// idempotent beats "only if missing".
+//
+// It lives inside the browser root on purpose — profiles are discovered from
+// `Local State`, never by listing the root, so an extra directory is inert.
+func writeSessionConfig(root string) (string, error) {
+	dir := filepath.Join(root, sessionConfigSubdir)
+	if err := os.MkdirAll(dir, sessionDirMode); err != nil {
+		return "", fmt.Errorf("mkdir session config dir: %w", err)
+	}
+	body := fmt.Sprintf(`{"oauthAccount":{"accountUuid":%q,"emailAddress":%q,"organizationUuid":%q}}`, fixtureAccountA, sessionEmail, fixtureOrgA)
+	if err := os.WriteFile(filepath.Join(dir, sessionConfigFile), []byte(body), sessionConfigMode); err != nil {
+		return "", fmt.Errorf("write session config: %w", err)
+	}
+	return dir, nil
 }
 
 // holdLocks takes flock(LOCK_EX) on each running profile's LOCK — the same
