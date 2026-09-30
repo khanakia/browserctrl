@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.1.4] - 2026-09-30
+
+### Added
 - `--reachable` on `list` and `find`: keep only browsers signed in to the Claude account **this session** runs as (the config `CLAUDE_CONFIG_DIR` selects, else `~/.claude.json`) — the only ids `select_browser` accepts, since the MCP pairs a session with browsers on its own account. It exits 1 when the session's account cannot be determined instead of printing an empty list, and names the account when no browser is on it. The agent rule, the skill and the README snippet now use `list --running --reachable --json`.
 - `browser.OnlyAccount(entries, uuid)` backing it.
 - `task docs:regen` (`scripts/regen-docs.py`): rewrites every captured `list` / `find` block in the README and docs from the fixture, idempotently, so a layout change cannot leave stale output behind.
@@ -15,13 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The Go API page was three releases behind: it now documents `Options.IncludeAllProfiles`, `Entry.AccountUUID` / `OrgUUID` / `Installed`, `OnlyAccount`, the whole Claude-account reader family, the new `ExtensionRecord` fields and the `browsertest` additions. The docs index, "How it works" and the privacy FAQ say what is actually read: the extension store's named keys and the account block of each Claude Code config, never a login token.
 - Doc captures now run as a fixture Claude Code session (`internal/docfixture` sets `CLAUDE_CONFIG_DIR` to a config it writes), so the tables show a named account beside an unnamed one and read the same whoever captures them.
 
-### Deprecated
-### Removed
-
 ### Fixed
 - `CLAUDE ACCOUNT` showed `other account` for browsers whose account a second Claude Code profile was signed in as. The label was resolved from a hardcoded `~/.claude.json`, i.e. only the default profile's account, so on a machine with a work profile (`CLAUDE_CONFIG_DIR=~/.claude-work`) every browser on the work account went unnamed. The account is now looked up across **every** Claude Code config on the machine — the one `CLAUDE_CONFIG_DIR` points at, `~/.claude.json`, and each sibling `~/.claude*` profile directory — so every account some profile is signed in as is named, and the table reads the same from a plain terminal as from inside a session. New `browser.ClaudeConfigPaths()` and `browser.ReadClaudeAccounts(paths)`; `DefaultClaudeConfigPath()` now honours `CLAUDE_CONFIG_DIR`. One unreadable profile config no longer un-names the others.
-
-### Security
 
 ## [0.1.3] - 2026-09-25
 
@@ -92,7 +96,8 @@ Release process:
   3. Tag the release (e.g. v1.2.0) and update the link refs at the bottom.
 -->
 
-[Unreleased]: https://github.com/khanakia/browserctrl/compare/v0.1.3...main
+[Unreleased]: https://github.com/khanakia/browserctrl/compare/v0.1.4...main
+[0.1.4]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.4
 [0.1.3]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.3
 [0.1.2]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.2
 [0.1.1]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.1
