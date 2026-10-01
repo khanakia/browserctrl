@@ -3,6 +3,7 @@ dist/
 .docs-fixture/
 cover.out
 cover.html
+.DS_Store
 # BEGIN repolink (managed — do not edit)
 /CLAUDE.md
 /docsi
