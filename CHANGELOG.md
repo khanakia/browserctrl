@@ -7,7 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- `browserctrl version [--json]` from voltkit `versioncmd`: version, source, commit, build time, Go version and platform. `--version` is unchanged.
+
 ### Changed
+- voltkit modules now come from `github.com/ubgo/voltkit` (the repo moved from the khanakia account): `skillcmd` v0.2.0, `versioncmd` v0.2.1. Workflows use `ubgo/volt-action@v1`.
 ### Deprecated
 ### Removed
 ### Fixed

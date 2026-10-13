@@ -104,7 +104,7 @@ tasks:
     cmds:
       - 'test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt needed on the files above"; exit 1; }'
 
-  # ── voltkit (github.com/khanakia/voltkit) ───────────────────────────────
+  # ── voltkit (github.com/ubgo/voltkit) ───────────────────────────────
   # Everything under volt:* shells out to the `volt` binary: it owns the gate
   # (its own golangci config + SKILL.md lint), release streams, tagging,
   # archives, checksums, the Homebrew formula and the skills bundle. Install:

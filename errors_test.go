@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -97,6 +98,28 @@ func TestRun_VersionFlag(t *testing.T) {
 	var so, se bytes.Buffer
 	if code := run([]string{"--version"}, &so, &se); code != exitOK || !strings.Contains(so.String(), "browserctrl version") {
 		t.Errorf("exit %d out %q err %q", code, so.String(), se.String())
+	}
+}
+
+// Pins the voltkit `version --json` subcommand: it is mounted and names
+// this binary, so a JSON consumer never sees another app's identity.
+func TestRun_VersionCommandJSON(t *testing.T) {
+	t.Parallel()
+	var so, se bytes.Buffer
+	if code := run([]string{"version", "--json"}, &so, &se); code != exitOK {
+		t.Fatalf("exit %d err %q", code, se.String())
+	}
+	var got struct {
+		Kind string `json:"kind"`
+		Data struct {
+			Binary string `json:"binary"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(so.Bytes(), &got); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, so.String())
+	}
+	if got.Kind != "version.show" || got.Data.Binary != "browserctrl" {
+		t.Errorf("got kind %q binary %q", got.Kind, got.Data.Binary)
 	}
 }
 
