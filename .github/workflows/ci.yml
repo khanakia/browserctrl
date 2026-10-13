@@ -25,5 +25,5 @@ jobs:
       # Go version literal here — it drifts from go.mod.
       - uses: actions/setup-go@v6
         with: { go-version-file: go.mod }
-      - uses: khanakia/volt-action@v1
+      - uses: ubgo/volt-action@v1
         with: { args: ci }

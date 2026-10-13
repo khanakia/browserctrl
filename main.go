@@ -24,6 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/ubgo/buildinfo"
+	"github.com/ubgo/voltkit/versioncmd"
 
 	"github.com/khanakia/browserctrl/browser"
 )
@@ -261,7 +262,11 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	root.AddCommand(newListCmd(), newFindCmd(), newSkillsCommand())
+	// `version` (text or --json) comes from voltkit/versioncmd; `--version`
+	// stays on versionString below, which keeps the one-line form scripts
+	// already parse.
+	root.AddCommand(newListCmd(), newFindCmd(), newSkillsCommand(),
+		versioncmd.New(versioncmd.WithBinaryName(root.Use)))
 	return root
 }
 
