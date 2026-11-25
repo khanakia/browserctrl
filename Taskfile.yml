@@ -139,9 +139,15 @@ tasks:
     cmds:
       - volt release . {{.CLI_ARGS}}
 
-  check:
-    desc: The real gate — fmt check, vet, lint, tests, cross-compile, tidy check
+  names:
+    desc: Fail when a tracked file holds a private name (hashed deny list in .github/denyhash.txt)
     cmds:
+      - scripts/check-names.sh
+
+  check:
+    desc: The real gate — private-name scan, fmt check, vet, lint, tests, cross-compile, tidy check
+    cmds:
+      - task: names
       - task: fmt-check
       - task: vet
       - task: lint

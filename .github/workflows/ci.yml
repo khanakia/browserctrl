@@ -25,5 +25,7 @@ jobs:
       # Go version literal here — it drifts from go.mod.
       - uses: actions/setup-go@v6
         with: { go-version-file: go.mod }
+      - name: private-name scan
+        run: scripts/check-names.sh
       - uses: ubgo/volt-action@v1
         with: { args: ci }

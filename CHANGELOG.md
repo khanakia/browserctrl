@@ -6,15 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-25
+
 ### Added
 - `browserctrl version [--json]` from voltkit `versioncmd`: version, source, commit, build time, Go version and platform. `--version` is unchanged.
 
 ### Changed
+- Examples in the docs and tests use generic names, and `task check` (plus the manual `ci` workflow) fails when a tracked file holds a name from the hashed deny list in `.github/denyhash.txt`. The repository history was rewritten to match, so the tags v0.1.0 to v0.1.4 were removed from GitHub; those versions stay available through the Go module proxy.
 - voltkit modules now come from `github.com/ubgo/voltkit` (the repo moved from the khanakia account): `skillcmd` v0.2.0, `versioncmd` v0.2.1. Workflows use `ubgo/volt-action@v1`.
-### Deprecated
-### Removed
-### Fixed
-### Security
 
 ## [0.1.4] - 2026-09-30
 
@@ -99,7 +98,8 @@ Release process:
   3. Tag the release (e.g. v1.2.0) and update the link refs at the bottom.
 -->
 
-[Unreleased]: https://github.com/khanakia/browserctrl/compare/v0.1.4...main
+[Unreleased]: https://github.com/khanakia/browserctrl/compare/v0.1.5...main
+[0.1.5]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.5
 [0.1.4]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.4
 [0.1.3]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.3
 [0.1.2]: https://github.com/khanakia/browserctrl/releases/tag/v0.1.2

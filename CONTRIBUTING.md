@@ -26,7 +26,7 @@ Requirements: Go 1.26+, [Task](https://taskfile.dev), and for `task lint` both `
 | `task test:uncovered` | every function below 100%, so you can see what a change left uncovered |
 | `task cross` | cross-compile linux/amd64, linux/arm64, windows/amd64, darwin/arm64 |
 | `task docs:capture -- <args>` | run the CLI against the doc fixture and print real output to paste into the docs |
-| `task check` | fmt check → vet → lint → test → cross → `go mod tidy -diff` |
+| `task check` | private-name scan → fmt check → vet → lint → test → cross → `go mod tidy -diff` |
 | `task volt:ci` | `volt ci --all`: volt's gate with its embedded golangci config plus the SKILL.md frontmatter lint |
 | `task volt:status` / `task volt:doctor` | release streams and their next version / is the repo releasable (tools, auth, remote) |
 | `task volt:release:snapshot` | build every platform into `dist/` with checksums, publish nothing — the release rehearsal |
