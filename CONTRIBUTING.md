@@ -10,6 +10,7 @@ By participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md
 git clone https://github.com/khanakia/browserctrl.git
 cd browserctrl
 task --list        # every task is self-documenting
+task hooks:install # once per clone: the private-name check on each commit
 task check         # the full gate; must be green before you open a PR
 ```
 
